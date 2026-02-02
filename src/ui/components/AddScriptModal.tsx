@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useState } from "react";
 const emptyForm = {
   name: "",
   description: "",
-  selected: "",
+  selectedScript: "",
+  customCommand: "",
   commands: [] as string[]
 };
 
@@ -46,7 +47,8 @@ export default function AddScriptModal({
       setForm({
         name: initial.name ?? "",
         description: initial.description ?? "",
-        selected: "",
+        selectedScript: "",
+        customCommand: "",
         commands: initial.commands ?? []
       });
     }
@@ -61,7 +63,10 @@ export default function AddScriptModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, initial]);
 
-  function updateField(key: "name" | "description" | "selected", value: string) {
+  function updateField(
+    key: "name" | "description" | "selectedScript" | "customCommand",
+    value: string
+  ) {
     if (error) {
       setError(null);
     }
@@ -69,7 +74,7 @@ export default function AddScriptModal({
   }
 
   function addCommand() {
-    const name = form.selected;
+    const name = form.selectedScript;
     if (!name) {
       return;
     }
@@ -80,6 +85,18 @@ export default function AddScriptModal({
     setForm((prev) => ({
       ...prev,
       commands: [...prev.commands, command]
+    }));
+  }
+
+  function addCustomCommand(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      commands: [...prev.commands, trimmed],
+      customCommand: ""
     }));
   }
 
@@ -177,8 +194,8 @@ export default function AddScriptModal({
               Add command from package.json scripts
               <div className="command-controls">
                 <select
-                  value={form.selected}
-                  onChange={(event) => updateField("selected", event.target.value)}
+                  value={form.selectedScript}
+                  onChange={(event) => updateField("selectedScript", event.target.value)}
                 >
                   <option value="">Select a script</option>
                   {scriptNames.map((name) => (
@@ -188,6 +205,33 @@ export default function AddScriptModal({
                   ))}
                 </select>
                 <button type="button" className="ghost" onClick={addCommand}>
+                  +
+                </button>
+              </div>
+            </label>
+          </div>
+
+          <div className="command-row">
+            <label>
+              Add custom command
+              <div className="command-controls">
+                <input
+                  type="text"
+                  value={form.customCommand}
+                  onChange={(event) => updateField("customCommand", event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addCustomCommand(form.customCommand);
+                    }
+                  }}
+                  placeholder={`echo "hello"`}
+                />
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => addCustomCommand(form.customCommand)}
+                >
                   +
                 </button>
               </div>

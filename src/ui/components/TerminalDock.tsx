@@ -194,17 +194,15 @@ export default function TerminalDock({
             >
               ☐
             </button>
-            {active && (
-              <button
-                type="button"
-                className="icon-button"
-                onClick={handleToggleOpen}
-                aria-label="Minimize terminal"
-                title="Minimize"
-              >
-                ×
-              </button>
-            )}
+            <button
+              type="button"
+              className="icon-button"
+              onClick={handleToggleOpen}
+              aria-label="Minimize terminal"
+              title="Minimize"
+            >
+              ×
+            </button>
           </div>
         </header>
 

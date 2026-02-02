@@ -40,6 +40,38 @@ function normalizeConfig(confJson: any) {
   return confJson;
 }
 
+async function readOverrides(overridesPath: string) {
+  const raw = await fs.readFile(overridesPath, "utf-8");
+  return JSON.parse(raw);
+}
+
+function normalizeOverrides(confJson: any) {
+  if (!confJson.pannels) {
+    confJson.pannels = { name: "Default", prepare: [], description: "", customScripts: [] };
+  }
+  if (!Array.isArray(confJson.pannels.customScripts)) {
+    confJson.pannels.customScripts = [];
+  }
+  return confJson;
+}
+
+function mergeCustomScripts(base: any[], overrides: any[]) {
+  const overrideMap = new Map(overrides.map((script) => [script.name, script]));
+  return base.map((script) => {
+    const override = overrideMap.get(script.name);
+    if (!override) {
+      return script;
+    }
+    return {
+      ...script,
+      description: override.description ?? script.description,
+      command: Array.isArray(override.command) && override.command.length > 0
+        ? override.command
+        : script.command,
+      hidden: override.hidden ?? script.hidden
+    };
+  });
+}
 async function readPackage(packageJsonPath: string) {
   const raw = await fs.readFile(packageJsonPath, "utf-8");
   return JSON.parse(raw);
@@ -47,6 +79,23 @@ async function readPackage(packageJsonPath: string) {
 
 async function writePackage(packageJsonPath: string, json: any) {
   await fs.writeFile(packageJsonPath, JSON.stringify(json, null, 2));
+}
+
+async function ensureGitignoreEntry(root: string) {
+  const gitignorePath = path.join(root, ".gitignore");
+  const entry = ".jrunner-conf-overrides.json";
+  const comment = "# jrunner overrides";
+  let content = "";
+  try {
+    content = await fs.readFile(gitignorePath, "utf-8");
+  } catch {
+    content = "";
+  }
+  if (content.includes(entry)) {
+    return;
+  }
+  const suffix = `${content.endsWith("\n") || content.length === 0 ? "" : "\n"}\n${comment}\n${entry}\n`;
+  await fs.writeFile(gitignorePath, content + suffix);
 }
 
 app.get("/api/health", (_req, res) => {
@@ -58,6 +107,7 @@ app.get("/api/scripts", async (_req, res) => {
     const root = process.cwd();
     const packageJsonPath = path.join(root, "package.json");
     const confPath = path.join(root, "jrunner-conf.json");
+    const overridesPath = path.join(root, ".jrunner-conf-overrides.json");
 
     const packageRaw = await fs.readFile(packageJsonPath, "utf-8");
     const packageJson = JSON.parse(packageRaw);
@@ -75,10 +125,31 @@ app.get("/api/scripts", async (_req, res) => {
       customScripts = [];
     }
 
+    let overridesPresent = true;
+    let hiddenScripts: string[] = [];
+    let overridesScripts: any[] = [];
+    try {
+      const overridesRaw = await readOverrides(overridesPath);
+      const overridesJson = normalizeOverrides(overridesRaw);
+      overridesScripts = overridesJson?.pannels?.customScripts ?? [];
+      hiddenScripts = overridesScripts
+        .filter((script) => script?.hidden)
+        .map((script) => script?.name)
+        .filter(Boolean);
+    } catch {
+      overridesPresent = false;
+      overridesScripts = [];
+      hiddenScripts = [];
+    }
+
+    customScripts = mergeCustomScripts(customScripts, overridesScripts);
+
     res.json({
       packageScripts,
       customScripts,
-      initialized
+      initialized,
+      overridesPresent,
+      hiddenScripts
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to load scripts" });
@@ -106,6 +177,51 @@ app.post("/api/init", async (_req, res) => {
     }
   } catch (error) {
     res.status(500).json({ error: "Failed to initialize" });
+  }
+});
+
+app.post("/api/overrides/hide", async (req, res) => {
+  try {
+    const root = process.cwd();
+    const overridesPath = path.join(root, ".jrunner-conf-overrides.json");
+    const { name, hidden } = req.body ?? {};
+    if (!name || typeof hidden !== "boolean") {
+      return res.status(400).json({ error: "Invalid override payload" });
+    }
+
+    let overridesJson;
+    try {
+      overridesJson = await readOverrides(overridesPath);
+    } catch {
+      overridesJson = {
+        pannels: {
+          name: "Default",
+          prepare: [],
+          description: "",
+          customScripts: []
+        }
+      };
+    }
+    overridesJson = normalizeOverrides(overridesJson);
+
+    const scripts = overridesJson.pannels.customScripts;
+    const existing = scripts.find((script: any) => script.name === name);
+    if (existing) {
+      existing.hidden = hidden;
+    } else {
+      scripts.push({
+        name,
+        command: [],
+        description: "",
+        hidden
+      });
+    }
+
+    await fs.writeFile(overridesPath, JSON.stringify(overridesJson, null, 2));
+    await ensureGitignoreEntry(root);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update overrides" });
   }
 });
 
@@ -191,6 +307,31 @@ app.delete("/api/custom-scripts", async (req, res) => {
     res.json({ customScripts: confJson.pannels.customScripts });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete custom script" });
+  }
+});
+
+app.post("/api/package-scripts", async (req, res) => {
+  try {
+    const root = process.cwd();
+    const packageJsonPath = path.join(root, "package.json");
+    const { name, command, originalName } = req.body ?? {};
+    const commandValue = Array.isArray(command) ? command.join(" && ") : command;
+    if (!name || !commandValue || typeof commandValue !== "string") {
+      return res.status(400).json({ error: "Invalid package script payload" });
+    }
+
+    let packageJson = await readPackage(packageJsonPath);
+    const scripts = packageJson.scripts ?? {};
+    if (originalName && scripts[originalName] && originalName !== name) {
+      delete scripts[originalName];
+    }
+    scripts[name] = commandValue;
+    packageJson = { ...packageJson, scripts };
+    await writePackage(packageJsonPath, packageJson);
+
+    res.json({ packageScripts: packageJson.scripts ?? {} });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to save package script" });
   }
 });
 

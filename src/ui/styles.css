@@ -52,6 +52,15 @@ body {
   margin-bottom: var(--space-2);
 }
 
+.column-header h2 {
+  margin: 0;
+}
+
+.column-action {
+  line-height: 1;
+  padding: 0.15rem 0.5rem;
+}
+
 .board {
   display: grid;
   grid-template-columns: repeat(2, max-content);
@@ -89,6 +98,29 @@ body {
   transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
+.card.hidden {
+  opacity: 0.55;
+}
+
+.card-hidden {
+  display: inline-block;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.add-card {
+  border-style: dashed;
+  text-align: left;
+  color: var(--muted-strong);
+  background: transparent;
+}
+
+.add-card:hover {
+  background: #333333;
+  border-color: #6b6b6b;
+}
 .card:hover {
   background: #444444;
   border-color: #6b6b6b;
@@ -198,7 +230,8 @@ body {
 }
 
 .modal-body label {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-1);
   margin-bottom: var(--space-3);
   font-size: 0.85rem;
@@ -219,6 +252,7 @@ body {
   background: var(--surface-deep);
   color: var(--text);
   font-family: inherit;
+  box-sizing: border-box;
 }
 
 .command-controls {

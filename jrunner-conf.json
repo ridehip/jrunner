@@ -3,6 +3,15 @@
     "name": "Default",
     "prepare": [],
     "description": "",
-    "customScripts": []
+    "customScripts": [
+      {
+        "name": "tttt",
+        "command": [
+          "echo \"done...\"",
+          "vite build"
+        ],
+        "description": "tttt"
+      }
+    ]
   }
 }

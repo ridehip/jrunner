@@ -1,1 +1,5 @@
 node_modules
+dist
+
+# jrunner overrides
+.jrunner-conf-overrides.json

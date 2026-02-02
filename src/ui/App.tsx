@@ -11,24 +11,31 @@ type CustomScript = {
   name: string;
   command: string[] | string;
   description?: string;
+  hidden?: boolean;
 };
 
 type ScriptsResponse = {
   packageScripts: PackageScripts;
   customScripts: CustomScript[];
   initialized?: boolean;
+  overridesPresent?: boolean;
+  hiddenScripts?: string[];
 };
 
 export default function App() {
   const [data, setData] = useState<ScriptsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(true);
+  const [overridesPresent, setOverridesPresent] = useState(true);
+  const [hiddenScripts, setHiddenScripts] = useState<string[]>([]);
+  const [showHidden, setShowHidden] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [terminals, setTerminals] = useState<TerminalEntry[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [addTarget, setAddTarget] = useState<"custom" | "package">("custom");
   const [modalInitial, setModalInitial] = useState<{
     name: string;
     description?: string;
@@ -50,6 +57,8 @@ export default function App() {
     const json = (await res.json()) as ScriptsResponse;
     setData(json);
     setInitialized(json.initialized !== false);
+    setOverridesPresent(json.overridesPresent !== false);
+    setHiddenScripts(json.hiddenScripts ?? []);
   }
 
   useEffect(() => {
@@ -68,21 +77,38 @@ export default function App() {
   const packageScripts = useMemo(() => {
     return packageEntries.map(([name, command]) => ({
       name,
-      command
+      command,
+      hidden: hiddenScripts.includes(name)
     }));
-  }, [packageEntries]);
+  }, [packageEntries, hiddenScripts]);
 
   const customScripts = useMemo(() => {
     return customEntries.map((script) => ({
       name: script.name,
       description: script.description,
-      command: Array.isArray(script.command) ? script.command.join(" && ") : script.command
+      command: Array.isArray(script.command) ? script.command.join(" && ") : script.command,
+      hidden: script.hidden === true || hiddenScripts.includes(script.name)
     }));
-  }, [customEntries]);
+  }, [customEntries, hiddenScripts]);
 
   const packageScriptMap = useMemo(() => {
     return Object.fromEntries(packageEntries);
   }, [packageEntries]);
+
+  const existingNamesForModal = useMemo(() => {
+    if (addTarget === "package") {
+      return Object.keys(packageScriptMap);
+    }
+    return customEntries.map((script) => script.name);
+  }, [addTarget, packageScriptMap, customEntries]);
+
+  const visiblePackageScripts = useMemo(() => {
+    return showHidden ? packageScripts : packageScripts.filter((script) => !script.hidden);
+  }, [packageScripts, showHidden]);
+
+  const visibleCustomScripts = useMemo(() => {
+    return showHidden ? customScripts : customScripts.filter((script) => !script.hidden);
+  }, [customScripts, showHidden]);
 
   function handleRunFromPackage(name: string) {
     const command = packageScriptMap[name];
@@ -208,36 +234,52 @@ export default function App() {
     setActiveTerminalId((current) => (current === id ? null : current));
   }
 
-  async function handleSaveCustom(payload: {
+  async function handleSaveScript(payload: {
     name: string;
     description: string;
     command: string[];
   }) {
     try {
       setSaving(true);
-      const endpoint = modalMode === "edit" ? "/api/custom-scripts" : "/api/custom-scripts";
-      const method = modalMode === "edit" ? "PUT" : "POST";
-      const body =
-        modalMode === "edit"
-          ? JSON.stringify({ ...payload, originalName })
-          : JSON.stringify(payload);
-      const res = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body
-      });
-      if (!res.ok) {
-        throw new Error("Failed to save custom script");
+      if (addTarget === "package") {
+        const res = await fetch("/api/package-scripts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payload, originalName })
+        });
+        if (!res.ok) {
+          throw new Error("Failed to save package.json script");
+        }
+        const json = (await res.json()) as { packageScripts: PackageScripts };
+        setData((prev) => ({
+          packageScripts: json.packageScripts ?? prev?.packageScripts ?? {},
+          customScripts: prev?.customScripts ?? []
+        }));
+      } else {
+        const method = modalMode === "edit" ? "PUT" : "POST";
+        const body =
+          modalMode === "edit"
+            ? JSON.stringify({ ...payload, originalName })
+            : JSON.stringify(payload);
+        const res = await fetch("/api/custom-scripts", {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body
+        });
+        if (!res.ok) {
+          throw new Error("Failed to save custom script");
+        }
+        const json = (await res.json()) as { customScripts: CustomScript[] };
+        setData((prev) => ({
+          packageScripts: prev?.packageScripts ?? {},
+          customScripts: json.customScripts
+        }));
       }
-      const json = (await res.json()) as { customScripts: CustomScript[] };
-      setData((prev) => ({
-        packageScripts: prev?.packageScripts ?? {},
-        customScripts: json.customScripts
-      }));
       setShowModal(false);
       setModalInitial(null);
       setOriginalName(null);
       setModalMode("add");
+      setAddTarget("custom");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -245,15 +287,22 @@ export default function App() {
     }
   }
 
-  function openAddModal() {
+  function openAddModal(target: "custom" | "package" = "custom") {
     setModalMode("add");
+    setAddTarget(target);
     setModalInitial(null);
     setOriginalName(null);
     setShowModal(true);
   }
 
-  function openEditModal(name: string, command: string | string[], description?: string) {
+  function openEditModal(
+    name: string,
+    command: string | string[],
+    description?: string,
+    target: "custom" | "package" = "custom"
+  ) {
     setModalMode("edit");
+    setAddTarget(target);
     setModalInitial({
       name,
       description,
@@ -276,6 +325,40 @@ export default function App() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function openOverridesPrompt(onContinue: () => void) {
+    if (overridesPresent) {
+      onContinue();
+      return;
+    }
+    openConfirmDialog({
+      title: "Create overrides file",
+      message:
+        "To apply overrides, .jrunner-conf-overrides.json will be created and added to .gitignore.",
+      options: [
+        { label: "Cancel", value: "cancel" },
+        { label: "Create", value: "create", tone: "primary" }
+      ],
+      onSelect: async (value) => {
+        closeConfirmDialog();
+        if (value !== "create") {
+          return;
+        }
+        onContinue();
+      }
+    });
+  }
+
+  async function handleHideToggle(name: string, hidden: boolean) {
+    openOverridesPrompt(async () => {
+      await fetch("/api/overrides/hide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, hidden })
+      });
+      await loadScripts();
+    });
   }
 
   async function deleteScript(payload: {
@@ -326,12 +409,10 @@ export default function App() {
   async function handleDeletePackage(name: string) {
     openConfirmDialog({
       title: "Remove script",
-      message: `Where should \"${name}\" be removed from?`,
+      message: `Remove \"${name}\" from package.json? This deletes the script for real.`,
       options: [
         { label: "Cancel", value: "cancel" },
-        { label: "package.json", value: "package", tone: "danger" },
-        { label: "jrunner-conf.json", value: "custom", tone: "danger" },
-        { label: "Both", value: "both", tone: "danger" }
+        { label: "Remove from package.json", value: "package", tone: "danger" }
       ],
       onSelect: async (value) => {
         closeConfirmDialog();
@@ -340,9 +421,32 @@ export default function App() {
         }
         await deleteScript({
           name,
-          removeFromPackage: value === "package" || value === "both",
-          removeFromCustom: value === "custom" || value === "both"
+          removeFromPackage: true,
+          removeFromCustom: false
         });
+      }
+    });
+  }
+
+  function handleAddFromPackageColumn() {
+    openConfirmDialog({
+      title: "Add script",
+      message: "Where should the new script be saved?",
+      options: [
+        { label: "Cancel", value: "cancel" },
+        { label: "package.json", value: "package", tone: "primary" },
+        { label: "jrunner-conf.json", value: "custom", tone: "primary" }
+      ],
+      onSelect: async (value) => {
+        closeConfirmDialog();
+        if (value === "cancel") {
+          return;
+        }
+        if (value === "custom") {
+          openAddModal("custom");
+          return;
+        }
+        openAddModal("package");
       }
     });
   }
@@ -391,30 +495,37 @@ export default function App() {
       <section className="board">
         <ScriptColumn
           title="package.json scripts"
-          scripts={packageScripts}
+          scripts={visiblePackageScripts}
           emptyLabel="No scripts found."
-          actionLabel="Add script"
-          onAction={openAddModal}
+          actionLabel={showHidden ? "Hide hidden" : "Show hidden"}
+          onAction={() => setShowHidden((prev) => !prev)}
           onRun={handleRunFromPackage}
-          onEdit={(name) => openEditModal(name, packageScriptMap[name] ?? "")}
+          onEdit={(name) => openEditModal(name, packageScriptMap[name] ?? "", undefined, "package")}
           onDuplicate={handleDuplicateFromPackage}
           onDelete={handleDeletePackage}
+          onToggleHidden={(name, hidden) => handleHideToggle(name, hidden)}
+          addCardLabel="+ Add script"
+          onAddCard={handleAddFromPackageColumn}
         />
         <ScriptColumn
           title="custom scripts"
-          scripts={customScripts}
+          scripts={visibleCustomScripts}
           emptyLabel="No custom scripts found."
-          actionLabel="Add script"
-          onAction={openAddModal}
+          showEmpty={false}
+          actionLabel="+"
+          onAction={() => openAddModal("custom")}
           onRun={handleRunFromCustom}
           onEdit={(name) => {
             const script = customEntries.find((item) => item.name === name);
             if (script) {
-              openEditModal(script.name, script.command, script.description);
+              openEditModal(script.name, script.command, script.description, "custom");
             }
           }}
           onDuplicate={handleDuplicateFromCustom}
           onDelete={handleDeleteCustom}
+          onToggleHidden={(name, hidden) => handleHideToggle(name, hidden)}
+          addCardLabel="+ Add script"
+          onAddCard={openAddModal}
         />
       </section>
       )}
@@ -422,12 +533,12 @@ export default function App() {
       <AddScriptModal
         open={showModal}
         packageScripts={packageScriptMap}
-        existingNames={customEntries.map((script) => script.name)}
+        existingNames={existingNamesForModal}
         mode={modalMode}
         initial={modalInitial ?? undefined}
         originalName={originalName}
         onClose={() => setShowModal(false)}
-        onSave={handleSaveCustom}
+        onSave={handleSaveScript}
       />
       <ConfirmDialog
         open={!!confirm}

@@ -4,20 +4,24 @@ type ScriptItemProps = {
   name: string;
   description?: string;
   command: string;
+  hidden?: boolean;
   onRun: (name: string) => void;
   onEdit: (name: string) => void;
   onDuplicate: (name: string) => void;
   onDelete: (name: string) => void;
+  onToggleHidden: (name: string, hidden: boolean) => void;
 };
 
 export default function ScriptItem({
   name,
   description,
   command,
+  hidden,
   onRun,
   onEdit,
   onDuplicate,
-  onDelete
+  onDelete,
+  onToggleHidden
 }: ScriptItemProps) {
   const detail = description ?? command;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -65,9 +69,14 @@ export default function ScriptItem({
   }
 
   return (
-    <div className="card clickable" onClick={handleRun} onContextMenu={openMenu}>
+    <div
+      className={`card clickable${hidden ? " hidden" : ""}`}
+      onClick={handleRun}
+      onContextMenu={openMenu}
+    >
       <h3 className="card-title">{name}</h3>
       <p className="card-meta">{detail}</p>
+      {hidden && <span className="card-hidden">Hidden</span>}
       <div
         className={`context-menu${menuOpen ? " open" : ""}`}
         role="menu"
@@ -79,6 +88,9 @@ export default function ScriptItem({
         </button>
         <button type="button" onClick={() => onDuplicate(name)}>
           Duplicate
+        </button>
+        <button type="button" onClick={() => onToggleHidden(name, !hidden)}>
+          {hidden ? "Unhide" : "Hide"}
         </button>
         <button type="button" onClick={() => onDelete(name)}>
           Delete
