@@ -1,18 +1,8 @@
 {
-  "cards": [],
   "pannels": {
     "name": "Default",
     "prepare": [],
     "description": "",
-    "customScripts": [
-      {
-        "name": "trstrst",
-        "command": [
-          "pnpm build:ui",
-          "pnpm build:ui"
-        ],
-        "description": "rstrst rst rst rst"
-      }
-    ]
+    "customScripts": []
   }
 }

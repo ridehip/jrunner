@@ -64,21 +64,48 @@ app.get("/api/scripts", async (_req, res) => {
     const packageScripts = packageJson?.scripts ?? {};
 
     let customScripts = [];
+    let initialized = true;
     try {
       const confRaw = await fs.readFile(confPath, "utf-8");
       const confJson = JSON.parse(confRaw);
       const panel = confJson?.pannels;
       customScripts = Array.isArray(panel?.customScripts) ? panel.customScripts : [];
     } catch {
+      initialized = false;
       customScripts = [];
     }
 
     res.json({
       packageScripts,
-      customScripts
+      customScripts,
+      initialized
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to load scripts" });
+  }
+});
+
+app.post("/api/init", async (_req, res) => {
+  try {
+    const root = process.cwd();
+    const confPath = path.join(root, "jrunner-conf.json");
+    try {
+      await fs.access(confPath);
+      return res.json({ initialized: true });
+    } catch {
+      const emptyConfig = {
+        pannels: {
+          name: "Default",
+          prepare: [],
+          description: "",
+          customScripts: []
+        }
+      };
+      await fs.writeFile(confPath, JSON.stringify(emptyConfig, null, 2));
+      return res.json({ initialized: true });
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Failed to initialize" });
   }
 });
 

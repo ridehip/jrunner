@@ -16,11 +16,13 @@ type CustomScript = {
 type ScriptsResponse = {
   packageScripts: PackageScripts;
   customScripts: CustomScript[];
+  initialized?: boolean;
 };
 
 export default function App() {
   const [data, setData] = useState<ScriptsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [terminals, setTerminals] = useState<TerminalEntry[]>([]);
@@ -40,31 +42,24 @@ export default function App() {
     onSelect: (value: string) => void | Promise<void>;
   } | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const res = await fetch("/api/scripts");
-        if (!res.ok) {
-          throw new Error("Failed to load scripts");
-        }
-        const json = (await res.json()) as ScriptsResponse;
-        if (!cancelled) {
-          setData(json);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Unknown error");
-        }
-      }
+  async function loadScripts(signal?: AbortSignal) {
+    const res = await fetch("/api/scripts", { signal });
+    if (!res.ok) {
+      throw new Error("Failed to load scripts");
     }
+    const json = (await res.json()) as ScriptsResponse;
+    setData(json);
+    setInitialized(json.initialized !== false);
+  }
 
-    load();
-
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    const controller = new AbortController();
+    loadScripts(controller.signal).catch((err) => {
+      if (!controller.signal.aborted) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
+    });
+    return () => controller.abort();
   }, []);
 
   const packageEntries = Object.entries(data?.packageScripts ?? {});
@@ -268,6 +263,21 @@ export default function App() {
     setShowModal(true);
   }
 
+  async function handleInit() {
+    try {
+      setSaving(true);
+      const res = await fetch("/api/init", { method: "POST" });
+      if (!res.ok) {
+        throw new Error("Failed to initialize");
+      }
+      await loadScripts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function deleteScript(payload: {
     name: string;
     removeFromPackage: boolean;
@@ -365,6 +375,19 @@ export default function App() {
 
       {error && <div>{error}</div>}
 
+      {!initialized && (
+        <div className="wizard">
+          <h2>Jrunner is not initialized in this project.</h2>
+          <p>Would you like to initialize it?</p>
+          <div className="wizard-actions">
+            <button type="button" className="run" onClick={handleInit} disabled={saving}>
+              Yes, initialize
+            </button>
+          </div>
+        </div>
+      )}
+
+      {initialized && (
       <section className="board">
         <ScriptColumn
           title="package.json scripts"
@@ -394,6 +417,7 @@ export default function App() {
           onDelete={handleDeleteCustom}
         />
       </section>
+      )}
 
       <AddScriptModal
         open={showModal}

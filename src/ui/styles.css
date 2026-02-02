@@ -303,6 +303,22 @@ body {
   color: var(--muted);
 }
 
+.wizard {
+  background: var(--column-bg);
+  border: 0.125rem solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: var(--space-4);
+  max-width: 28rem;
+}
+
+.wizard h2 {
+  margin-top: 0;
+}
+
+.wizard-actions {
+  margin-top: var(--space-3);
+}
+
 .run {
   border: none;
   border-radius: 0.375rem;
