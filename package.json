@@ -4,12 +4,17 @@
   "description": "",
   "type": "module",
   "main": "index.js",
+  "bin": {
+    "jrunner": "dist/cli/index.js"
+  },
   "scripts": {
     "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:ui\"",
     "dev:server": "tsx watch src/server/index.ts",
     "dev:ui": "vite",
-    "build": "pnpm build:ui",
+    "build": "pnpm build:ui && pnpm build:server && pnpm build:cli",
     "build:ui": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build:cli": "node build-cli.js",
     "start": "tsx src/server/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

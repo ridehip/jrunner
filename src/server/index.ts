@@ -290,15 +290,26 @@ app.post("/api/runs/:id/stop", (req, res) => {
 
 const isProd = process.env.NODE_ENV === "production";
 
-if (isProd) {
+async function serveUiIfBuilt() {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const uiDir = path.resolve(__dirname, "../../dist/ui");
-
+  try {
+    await fs.access(path.join(uiDir, "index.html"));
+  } catch {
+    return false;
+  }
   app.use(express.static(uiDir));
   app.get("*", (_req, res) => {
     res.sendFile(path.join(uiDir, "index.html"));
   });
+  return true;
+}
+
+if (isProd) {
+  void serveUiIfBuilt();
+} else {
+  void serveUiIfBuilt();
 }
 
 app.listen(port, () => {
