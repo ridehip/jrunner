@@ -6,11 +6,12 @@
     "description": "",
     "customScripts": [
       {
-        "name": "build:ui-copy",
+        "name": "trstrst",
         "command": [
-          "vite build"
+          "pnpm build:ui",
+          "pnpm build:ui"
         ],
-        "description": ""
+        "description": "rstrst rst rst rst"
       }
     ]
   }

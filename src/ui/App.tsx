@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AppHeader from "./components/AppHeader";
 import AddScriptModal from "./components/AddScriptModal";
+import ConfirmDialog from "./components/ConfirmDialog";
 import ScriptColumn from "./components/ScriptColumn";
 import TerminalDock, { TerminalEntry } from "./components/TerminalDock";
 
@@ -32,6 +33,12 @@ export default function App() {
     commands: string[];
   } | null>(null);
   const [originalName, setOriginalName] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    message: string;
+    options: { label: string; value: string; tone?: "primary" | "danger" | "neutral" }[];
+    onSelect: (value: string) => void | Promise<void>;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,7 +174,41 @@ export default function App() {
     };
   }
 
-  function closeTerminal(id: string) {
+  function openConfirmDialog(config: {
+    title: string;
+    message: string;
+    options: { label: string; value: string; tone?: "primary" | "danger" | "neutral" }[];
+    onSelect: (value: string) => void | Promise<void>;
+  }) {
+    setConfirm(config);
+  }
+
+  function closeConfirmDialog() {
+    setConfirm(null);
+  }
+
+  async function closeTerminal(id: string) {
+    const target = terminals.find((term) => term.id === id);
+    if (target?.status === "running") {
+      openConfirmDialog({
+        title: "Cancel running script",
+        message: `Stop \"${target.title}\" and close its tab?`,
+        options: [
+          { label: "Keep running", value: "keep" },
+          { label: "Cancel run", value: "cancel", tone: "danger" }
+        ],
+        onSelect: async (value) => {
+          closeConfirmDialog();
+          if (value !== "cancel") {
+            return;
+          }
+          await fetch(`/api/runs/${id}/stop`, { method: "POST" });
+          setTerminals((prev) => prev.filter((term) => term.id !== id));
+          setActiveTerminalId((current) => (current === id ? null : current));
+        }
+      });
+      return;
+    }
     setTerminals((prev) => prev.filter((term) => term.id !== id));
     setActiveTerminalId((current) => (current === id ? null : current));
   }
@@ -227,27 +268,73 @@ export default function App() {
     setShowModal(true);
   }
 
-  async function handleDelete(name: string) {
+  async function deleteScript(payload: {
+    name: string;
+    removeFromPackage: boolean;
+    removeFromCustom: boolean;
+  }) {
     try {
       setSaving(true);
-      const res = await fetch("/api/custom-scripts", {
-        method: "DELETE",
+      const res = await fetch("/api/delete-script", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name })
+        body: JSON.stringify(payload)
       });
       if (!res.ok) {
-        throw new Error("Failed to delete custom script");
+        throw new Error("Failed to delete script");
       }
-      const json = (await res.json()) as { customScripts: CustomScript[] };
+      const json = (await res.json()) as ScriptsResponse;
       setData((prev) => ({
-        packageScripts: prev?.packageScripts ?? {},
-        customScripts: json.customScripts
+        packageScripts: json.packageScripts ?? prev?.packageScripts ?? {},
+        customScripts: json.customScripts ?? prev?.customScripts ?? []
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleDeleteCustom(name: string) {
+    openConfirmDialog({
+      title: "Delete custom script",
+      message: `Delete \"${name}\" from jrunner-conf.json?`,
+      options: [
+        { label: "Cancel", value: "cancel" },
+        { label: "Delete", value: "delete", tone: "danger" }
+      ],
+      onSelect: async (value) => {
+        closeConfirmDialog();
+        if (value !== "delete") {
+          return;
+        }
+        await deleteScript({ name, removeFromPackage: false, removeFromCustom: true });
+      }
+    });
+  }
+
+  async function handleDeletePackage(name: string) {
+    openConfirmDialog({
+      title: "Remove script",
+      message: `Where should \"${name}\" be removed from?`,
+      options: [
+        { label: "Cancel", value: "cancel" },
+        { label: "package.json", value: "package", tone: "danger" },
+        { label: "jrunner-conf.json", value: "custom", tone: "danger" },
+        { label: "Both", value: "both", tone: "danger" }
+      ],
+      onSelect: async (value) => {
+        closeConfirmDialog();
+        if (value === "cancel") {
+          return;
+        }
+        await deleteScript({
+          name,
+          removeFromPackage: value === "package" || value === "both",
+          removeFromCustom: value === "custom" || value === "both"
+        });
+      }
+    });
   }
 
   function handleDuplicateFromPackage(name: string) {
@@ -288,7 +375,7 @@ export default function App() {
           onRun={handleRunFromPackage}
           onEdit={(name) => openEditModal(name, packageScriptMap[name] ?? "")}
           onDuplicate={handleDuplicateFromPackage}
-          onDelete={() => setError("package.json scripts cannot be deleted here.")}
+          onDelete={handleDeletePackage}
         />
         <ScriptColumn
           title="custom scripts"
@@ -304,7 +391,7 @@ export default function App() {
             }
           }}
           onDuplicate={handleDuplicateFromCustom}
-          onDelete={handleDelete}
+          onDelete={handleDeleteCustom}
         />
       </section>
 
@@ -317,6 +404,14 @@ export default function App() {
         originalName={originalName}
         onClose={() => setShowModal(false)}
         onSave={handleSaveCustom}
+      />
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm?.title ?? ""}
+        message={confirm?.message ?? ""}
+        options={confirm?.options ?? []}
+        onSelect={(value) => confirm?.onSelect(value)}
+        onClose={closeConfirmDialog}
       />
       {saving && <div className="saving-indicator">Saving…</div>}
       <TerminalDock

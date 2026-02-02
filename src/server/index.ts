@@ -16,6 +16,7 @@ type RunRecord = {
   command: string;
   logs: { type: "stdout" | "stderr"; data: string }[];
   listeners: Set<express.Response>;
+  child?: ReturnType<typeof spawn>;
 };
 
 const runs = new Map<string, RunRecord>();
@@ -37,6 +38,15 @@ function normalizeConfig(confJson: any) {
     confJson.pannels.customScripts = [];
   }
   return confJson;
+}
+
+async function readPackage(packageJsonPath: string) {
+  const raw = await fs.readFile(packageJsonPath, "utf-8");
+  return JSON.parse(raw);
+}
+
+async function writePackage(packageJsonPath: string, json: any) {
+  await fs.writeFile(packageJsonPath, JSON.stringify(json, null, 2));
 }
 
 app.get("/api/health", (_req, res) => {
@@ -157,6 +167,42 @@ app.delete("/api/custom-scripts", async (req, res) => {
   }
 });
 
+app.post("/api/delete-script", async (req, res) => {
+  try {
+    const root = process.cwd();
+    const packageJsonPath = path.join(root, "package.json");
+    const confPath = path.join(root, "jrunner-conf.json");
+
+    const { name, removeFromPackage, removeFromCustom } = req.body ?? {};
+    if (!name || (!removeFromPackage && !removeFromCustom)) {
+      return res.status(400).json({ error: "Invalid delete payload" });
+    }
+
+    let packageJson = await readPackage(packageJsonPath);
+    if (removeFromPackage && packageJson.scripts && packageJson.scripts[name]) {
+      const { [name]: _removed, ...rest } = packageJson.scripts;
+      packageJson = { ...packageJson, scripts: rest };
+      await writePackage(packageJsonPath, packageJson);
+    }
+
+    let confJson = await readConfig(confPath);
+    confJson = normalizeConfig(confJson);
+    if (removeFromCustom) {
+      confJson.pannels.customScripts = confJson.pannels.customScripts.filter(
+        (script: any) => script.name !== name
+      );
+      await fs.writeFile(confPath, JSON.stringify(confJson, null, 2));
+    }
+
+    res.json({
+      packageScripts: packageJson.scripts ?? {},
+      customScripts: confJson.pannels.customScripts ?? []
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete script" });
+  }
+});
+
 app.post("/api/run", async (req, res) => {
   try {
     const { name, command } = req.body ?? {};
@@ -180,6 +226,7 @@ app.post("/api/run", async (req, res) => {
       shell: true,
       env: process.env
     });
+    record.child = child;
 
     child.stdout.on("data", (chunk) => {
       const data = chunk.toString();
@@ -230,6 +277,15 @@ app.get("/api/runs/:id/stream", (req, res) => {
   req.on("close", () => {
     record.listeners.delete(res);
   });
+});
+
+app.post("/api/runs/:id/stop", (req, res) => {
+  const record = runs.get(req.params.id);
+  if (!record || !record.child) {
+    return res.status(404).json({ error: "Run not found" });
+  }
+  record.child.kill("SIGTERM");
+  res.json({ ok: true });
 });
 
 const isProd = process.env.NODE_ENV === "production";
