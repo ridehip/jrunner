@@ -291,15 +291,43 @@ body {
 
 .terminal-dock {
   position: fixed;
-  left: var(--space-4);
-  right: var(--space-4);
-  bottom: var(--space-4);
-  display: grid;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   gap: var(--space-2);
   z-index: 20;
 }
 
-.terminal-window {
+.terminal-toggle {
+  border: 0.125rem solid #6a6a6a;
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  background: #1c1c1c;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.terminal-toggle.running {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.terminal-badge {
+  background: var(--accent);
+  color: #111111;
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+  font-size: 0.75rem;
+}
+
+.terminal-container {
+  width: min(40rem, 90vw);
   background: #0d0d0d;
   color: #f0f0f0;
   border-radius: 0.75rem;
@@ -308,10 +336,32 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  align-self: end;
+  transition: transform 220ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    opacity 220ms cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
-.terminal-window.maximized {
-  height: 90vh;
+.terminal-container.open {
+  display: flex;
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.terminal-container:not(.open) {
+  width: auto;
+  background: transparent;
+  border: none;
+  outline: none;
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  transform: translateY(0.5rem);
+  opacity: 0.95;
+}
+
+.terminal-container:not(.open) .terminal-tabs,
+.terminal-container:not(.open) .terminal-body {
+  display: none;
 }
 
 .terminal-header {
@@ -323,6 +373,17 @@ body {
   font-size: 0.85rem;
   cursor: ns-resize;
   user-select: none;
+  gap: var(--space-2);
+}
+
+.terminal-container:not(.open) .terminal-header {
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.terminal-container:not(.open) .terminal-actions {
+  display: none;
 }
 
 .terminal-title {
@@ -376,6 +437,8 @@ body {
 .terminal-tabs {
   display: flex;
   gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-2);
+  flex-wrap: wrap;
 }
 
 .terminal-tab {
@@ -386,11 +449,33 @@ body {
   color: var(--muted-strong);
   font-size: 0.8rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .terminal-tab.active {
   border-color: var(--accent);
   color: #ffffff;
+}
+
+.terminal-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.terminal-dot.running {
+  background: #f2c94c;
+}
+
+.terminal-dot.done {
+  background: #4ade80;
+}
+
+.terminal-dot.error {
+  background: #f87171;
 }
 
 

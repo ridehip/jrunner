@@ -4,30 +4,32 @@ export type TerminalEntry = {
   id: string;
   title: string;
   lines: string[];
-  status: "running" | "done";
+  status: "running" | "done" | "error";
   collapsed: boolean;
 };
 
 type TerminalDockProps = {
   terminals: TerminalEntry[];
   activeId: string | null;
-  onToggle: (id: string) => void;
+  isOpen: boolean;
+  runningCount: number;
+  onToggleOpen: () => void;
+  onSelect: (id: string) => void;
   onClose: (id: string) => void;
 };
 
 export default function TerminalDock({
   terminals,
   activeId,
-  onToggle,
+  isOpen,
+  runningCount,
+  onToggleOpen,
+  onSelect,
   onClose
 }: TerminalDockProps) {
   const [height, setHeight] = useState(240);
   const [isMaximized, setIsMaximized] = useState(false);
   const dragState = useRef<{ startY: number; startHeight: number } | null>(null);
-
-  if (terminals.length === 0) {
-    return null;
-  }
 
   const active = terminals.find((term) => term.id === activeId) ?? null;
   const minHeight = 160;
@@ -73,70 +75,86 @@ export default function TerminalDock({
       return next;
     });
   }
+
+  function handleToggleOpen() {
+    onToggleOpen();
+  }
+
+  function handleSelect(id: string) {
+    if (!isOpen) {
+      onToggleOpen();
+    }
+    onSelect(id);
+  }
+
   const tabs = terminals.map((term) => (
     <button
       key={term.id}
       type="button"
       className={`terminal-tab${term.id === activeId ? " active" : ""}`}
-      onClick={() => onToggle(term.id)}
+      onClick={() => handleSelect(term.id)}
     >
+      <span className={`terminal-dot ${term.status}`} />
       {term.title}
     </button>
   ));
 
   return (
     <div className="terminal-dock">
-      {active && !active.collapsed && (
-        <div className={`terminal-window${isMaximized ? " maximized" : ""}`} style={{ height }}>
-          <header className="terminal-header" onMouseDown={startDrag}>
-            <div className="terminal-title">
-              <span>{active.title}</span>
-              <span className="terminal-status">{active.status}</span>
-            </div>
-            <div className="terminal-actions">
+      <div
+        className={`terminal-container${isOpen ? " open" : ""}`}
+        style={isOpen ? { height } : undefined}
+      >
+        <header className="terminal-header" onMouseDown={startDrag}>
+          <button
+            type="button"
+            className={`terminal-toggle${runningCount > 0 ? " running" : ""}`}
+            onClick={handleToggleOpen}
+            aria-label="Toggle terminals"
+          >
+            Terminal
+            {runningCount > 0 && <span className="terminal-badge">{runningCount}</span>}
+          </button>
+          <div className="terminal-actions">
+            <button
+              type="button"
+              className="icon-button"
+              onClick={toggleMaximize}
+              aria-label="Maximize terminals"
+              title="Maximize"
+            >
+              ☐
+            </button>
+            {active && (
               <button
                 type="button"
                 className="icon-button"
-                onClick={() => onToggle(active.id)}
+                onClick={handleToggleOpen}
                 aria-label="Minimize terminal"
                 title="Minimize"
               >
-                — 
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={toggleMaximize}
-                aria-label="Maximize terminal"
-                title="Maximize"
-              >
-                ☐
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => onClose(active.id)}
-                aria-label="Close terminal"
-                title="Close"
-              >
                 ×
               </button>
-            </div>
-          </header>
-          <div className="terminal-body">
-            {active.lines.length === 0 ? (
-              <div className="terminal-line">Running…</div>
-            ) : (
-              active.lines.map((line, index) => (
-                <div key={`${active.id}-${index}`} className="terminal-line">
-                  {line}
-                </div>
-              ))
             )}
           </div>
+        </header>
+
+        <div className="terminal-tabs">{tabs}</div>
+
+        <div className="terminal-body">
+          {!active ? (
+            <div className="terminal-line">No active terminals.</div>
+          ) : active.lines.length === 0 ? (
+            <div className="terminal-line">Running…</div>
+          ) : (
+            active.lines.map((line, index) => (
+              <div key={`${active.id}-${index}`} className="terminal-line">
+                {line}
+              </div>
+            ))
+          )}
         </div>
-      )}
-      <div className="terminal-tabs">{tabs}</div>
+      </div>
     </div>
   );
 }

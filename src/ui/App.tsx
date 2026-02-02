@@ -24,6 +24,7 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [terminals, setTerminals] = useState<TerminalEntry[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [modalInitial, setModalInitial] = useState<{
     name: string;
@@ -117,6 +118,7 @@ export default function App() {
       };
       setTerminals((prev) => [entry, ...prev]);
       setActiveTerminalId(json.id);
+      setTerminalOpen(true);
       streamRun(json.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -149,7 +151,13 @@ export default function App() {
       const payload = JSON.parse((event as MessageEvent).data) as { code: number | null };
       setTerminals((prev) =>
         prev.map((term) =>
-          term.id === id ? { ...term, status: "done", lines: [...term.lines, `exit ${payload.code}`] } : term
+          term.id === id
+            ? {
+                ...term,
+                status: payload.code === 0 ? "done" : "error",
+                lines: [...term.lines, `exit ${payload.code}`]
+              }
+            : term
         )
       );
       source.close();
@@ -157,15 +165,6 @@ export default function App() {
     source.onerror = () => {
       source.close();
     };
-  }
-
-  function toggleTerminal(id: string) {
-    setTerminals((prev) =>
-      prev.map((term) =>
-        term.id === id ? { ...term, collapsed: !term.collapsed } : term
-      )
-    );
-    setActiveTerminalId((current) => (current === id ? null : id));
   }
 
   function closeTerminal(id: string) {
@@ -323,7 +322,10 @@ export default function App() {
       <TerminalDock
         terminals={terminals}
         activeId={activeTerminalId}
-        onToggle={toggleTerminal}
+        isOpen={terminalOpen}
+        runningCount={terminals.filter((term) => term.status === "running").length}
+        onToggleOpen={() => setTerminalOpen((prev) => !prev)}
+        onSelect={setActiveTerminalId}
         onClose={closeTerminal}
       />
     </main>
