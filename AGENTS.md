@@ -1,19 +1,25 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `package.json` is currently the only tracked file and defines the package metadata and scripts.
-- The entry point is `index.js` per `package.json` (`"main": "index.js"`), but the file does not yet exist. Add it at the repo root when implementing runtime code.
-- There are no dedicated `src/`, `test/`, or `assets/` directories yet. If you introduce them, keep top-level layout simple (for example: `src/` for code, `test/` for tests).
+- `src/server/` holds the Node server (Express) entry at `src/server/index.ts`.
+- `src/ui/` contains the React SPA with `src/ui/index.html`, `src/ui/main.tsx`, and shared styles in `src/ui/styles.css`.
+- `src/ui/components/` contains UI components. Components must be separated into their own files (one component per file).
+- `src/shared/` is reserved for cross-cutting logic (config parsing, shared types).
+- `jrunner-conf.json` is a local mock config; `jrunner-conf.template.json` is the template.
 
 ## Build, Test, and Development Commands
-- `pnpm install`: install dependencies once they are added.
-- `pnpm test`: currently fails with a placeholder message. Replace this script once a test runner is added.
-- No build or dev scripts are defined. Add scripts like `build`, `lint`, or `dev` as the project grows.
+- `pnpm install`: install dependencies.
+- `pnpm dev`: run server (`tsx watch`) and UI (Vite) together.
+- `pnpm dev:server`: run the Express server in watch mode.
+- `pnpm dev:ui`: run the Vite dev server.
+- `pnpm build`: build the UI to `dist/ui`.
+- `pnpm start`: start the server (expects a production UI build).
+- `pnpm test`: placeholder until a test runner is added.
 
 ## Coding Style & Naming Conventions
 - No linting or formatting tools are configured yet.
 - If you add tooling, keep conventions consistent and document them here (for example, 2-space indentation for JS, `camelCase` for variables, `PascalCase` for classes).
-- Prefer clear file names aligned with functionality (for example, `src/runner.js`, `src/config.js`).
+- Prefer clear file names aligned with functionality (for example, `src/ui/components/ScriptCard.tsx`).
 
 ## Testing Guidelines
 - No test framework is configured.

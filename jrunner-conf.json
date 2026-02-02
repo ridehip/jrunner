@@ -1,0 +1,17 @@
+{
+  "cards": [],
+  "pannels": {
+    "name": "Default",
+    "prepare": [],
+    "description": "",
+    "customScripts": [
+      {
+        "name": "build:ui-copy",
+        "command": [
+          "vite build"
+        ],
+        "description": ""
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+    "cards": [
+        {
+            "name": "some card name",
+            "prepare": [
+                "command 1",
+                "command 2"
+            ],
+            "description": "some card description",
+            "customScripts": [
+                {
+                    "name": "some custom script name",
+                    "command": [
+                        "command 1",
+                        "command 2"
+                    ],
+                    "description": "some custom script description"
+                }
+            ]
+        }
+    ]
+}
