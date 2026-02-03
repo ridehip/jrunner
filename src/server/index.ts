@@ -32,10 +32,19 @@ async function readConfig(confPath: string) {
 
 function normalizeConfig(confJson: any) {
   if (!confJson.pannels) {
-    confJson.pannels = { name: "Default", prepare: [], description: "", customScripts: [] };
+    confJson.pannels = {
+      name: "Default",
+      prepare: [],
+      description: "",
+      customScripts: [],
+      columns: [{ id: "custom", name: "custom scripts" }]
+    };
   }
   if (!Array.isArray(confJson.pannels.customScripts)) {
     confJson.pannels.customScripts = [];
+  }
+  if (!Array.isArray(confJson.pannels.columns)) {
+    confJson.pannels.columns = [{ id: "custom", name: "custom scripts" }];
   }
   return confJson;
 }
@@ -47,10 +56,19 @@ async function readOverrides(overridesPath: string) {
 
 function normalizeOverrides(confJson: any) {
   if (!confJson.pannels) {
-    confJson.pannels = { name: "Default", prepare: [], description: "", customScripts: [] };
+    confJson.pannels = {
+      name: "Default",
+      prepare: [],
+      description: "",
+      customScripts: [],
+      columns: []
+    };
   }
   if (!Array.isArray(confJson.pannels.customScripts)) {
     confJson.pannels.customScripts = [];
+  }
+  if (!Array.isArray(confJson.pannels.columns)) {
+    confJson.pannels.columns = [];
   }
   return confJson;
 }
@@ -68,7 +86,9 @@ function mergeCustomScripts(base: any[], overrides: any[]) {
       command: Array.isArray(override.command) && override.command.length > 0
         ? override.command
         : script.command,
-      hidden: override.hidden ?? script.hidden
+      hidden: override.hidden ?? script.hidden,
+      color: override.color ?? script.color,
+      columnId: override.columnId ?? script.columnId
     };
   });
 }
@@ -114,12 +134,16 @@ app.get("/api/scripts", async (_req, res) => {
     const packageScripts = packageJson?.scripts ?? {};
 
     let customScripts = [];
+    let columns = [{ id: "custom", name: "custom scripts" }];
     let initialized = true;
     try {
       const confRaw = await fs.readFile(confPath, "utf-8");
-      const confJson = JSON.parse(confRaw);
+      const confJson = normalizeConfig(JSON.parse(confRaw));
       const panel = confJson?.pannels;
       customScripts = Array.isArray(panel?.customScripts) ? panel.customScripts : [];
+      columns = Array.isArray(panel?.columns) && panel.columns.length > 0
+        ? panel.columns
+        : columns;
     } catch {
       initialized = false;
       customScripts = [];
@@ -132,6 +156,9 @@ app.get("/api/scripts", async (_req, res) => {
       const overridesRaw = await readOverrides(overridesPath);
       const overridesJson = normalizeOverrides(overridesRaw);
       overridesScripts = overridesJson?.pannels?.customScripts ?? [];
+      if (Array.isArray(overridesJson?.pannels?.columns) && overridesJson.pannels.columns.length > 0) {
+        columns = overridesJson.pannels.columns;
+      }
       hiddenScripts = overridesScripts
         .filter((script) => script?.hidden)
         .map((script) => script?.name)
@@ -142,14 +169,18 @@ app.get("/api/scripts", async (_req, res) => {
       hiddenScripts = [];
     }
 
-    customScripts = mergeCustomScripts(customScripts, overridesScripts);
+    customScripts = mergeCustomScripts(customScripts, overridesScripts).map((script) => ({
+      ...script,
+      columnId: script.columnId ?? "custom"
+    }));
 
     res.json({
       packageScripts,
       customScripts,
       initialized,
       overridesPresent,
-      hiddenScripts
+      hiddenScripts,
+      columns
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to load scripts" });
@@ -169,7 +200,8 @@ app.post("/api/init", async (_req, res) => {
           name: "Default",
           prepare: [],
           description: "",
-          customScripts: []
+          customScripts: [],
+          columns: [{ id: "custom", name: "custom scripts" }]
         }
       };
       await fs.writeFile(confPath, JSON.stringify(emptyConfig, null, 2));
@@ -230,7 +262,7 @@ app.post("/api/custom-scripts", async (req, res) => {
     const root = process.cwd();
     const confPath = path.join(root, "jrunner-conf.json");
 
-    const { name, description, command } = req.body ?? {};
+    const { name, description, command, color, columnId } = req.body ?? {};
     if (!name || !command || !Array.isArray(command) || command.length === 0) {
       return res.status(400).json({ error: "Invalid custom script payload" });
     }
@@ -241,7 +273,9 @@ app.post("/api/custom-scripts", async (req, res) => {
     confJson.pannels.customScripts.push({
       name,
       command,
-      description: description || ""
+      description: description || "",
+      color: color || "",
+      columnId: columnId || "custom"
     });
 
     await fs.writeFile(confPath, JSON.stringify(confJson, null, 2));
@@ -259,7 +293,7 @@ app.put("/api/custom-scripts", async (req, res) => {
     const root = process.cwd();
     const confPath = path.join(root, "jrunner-conf.json");
 
-    const { originalName, name, description, command } = req.body ?? {};
+    const { originalName, name, description, command, color, columnId } = req.body ?? {};
     const commandValue = Array.isArray(command) ? command : null;
     if (!originalName || !name || !commandValue || commandValue.length === 0) {
       return res.status(400).json({ error: "Invalid custom script payload" });
@@ -277,7 +311,9 @@ app.put("/api/custom-scripts", async (req, res) => {
     scripts[index] = {
       name,
       command: commandValue,
-      description: description || ""
+      description: description || "",
+      color: color || "",
+      columnId: columnId || "custom"
     };
 
     await fs.writeFile(confPath, JSON.stringify(confJson, null, 2));
@@ -332,6 +368,95 @@ app.post("/api/package-scripts", async (req, res) => {
     res.json({ packageScripts: packageJson.scripts ?? {} });
   } catch (error) {
     res.status(500).json({ error: "Failed to save package script" });
+  }
+});
+
+app.post("/api/columns", async (req, res) => {
+  try {
+    const root = process.cwd();
+    const confPath = path.join(root, "jrunner-conf.json");
+    const { name } = req.body ?? {};
+    if (!name) {
+      return res.status(400).json({ error: "Invalid column payload" });
+    }
+
+    let confJson = await readConfig(confPath);
+    confJson = normalizeConfig(confJson);
+
+    const baseId = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "column";
+    let id = baseId;
+    let suffix = 2;
+    const existingIds = new Set(confJson.pannels.columns.map((col: any) => col.id));
+    while (existingIds.has(id)) {
+      id = `${baseId}-${suffix++}`;
+    }
+
+    confJson.pannels.columns.push({ id, name });
+    await fs.writeFile(confPath, JSON.stringify(confJson, null, 2));
+
+    res.json({
+      columns: confJson.pannels.columns,
+      customScripts: confJson.pannels.customScripts
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create column" });
+  }
+});
+
+app.put("/api/columns/:id", async (req, res) => {
+  try {
+    const root = process.cwd();
+    const confPath = path.join(root, "jrunner-conf.json");
+    const { name } = req.body ?? {};
+    const { id } = req.params;
+    if (!name) {
+      return res.status(400).json({ error: "Invalid column payload" });
+    }
+
+    let confJson = await readConfig(confPath);
+    confJson = normalizeConfig(confJson);
+
+    const column = confJson.pannels.columns.find((col: any) => col.id === id);
+    if (!column) {
+      return res.status(404).json({ error: "Column not found" });
+    }
+    column.name = name;
+    await fs.writeFile(confPath, JSON.stringify(confJson, null, 2));
+
+    res.json({
+      columns: confJson.pannels.columns,
+      customScripts: confJson.pannels.customScripts
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update column" });
+  }
+});
+
+app.delete("/api/columns/:id", async (req, res) => {
+  try {
+    const root = process.cwd();
+    const confPath = path.join(root, "jrunner-conf.json");
+    const { id } = req.params;
+
+    let confJson = await readConfig(confPath);
+    confJson = normalizeConfig(confJson);
+
+    confJson.pannels.columns = confJson.pannels.columns.filter((col: any) => col.id !== id);
+    confJson.pannels.customScripts = confJson.pannels.customScripts.map((script: any) => ({
+      ...script,
+      columnId: script.columnId === id ? "custom" : script.columnId
+    }));
+
+    await fs.writeFile(confPath, JSON.stringify(confJson, null, 2));
+    res.json({
+      columns: confJson.pannels.columns,
+      customScripts: confJson.pannels.customScripts
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete column" });
   }
 });
 
@@ -457,6 +582,7 @@ app.post("/api/runs/:id/stop", (req, res) => {
 });
 
 const isProd = process.env.NODE_ENV === "production";
+const forceServeUi = process.env.FORCE_SERVE_UI === "1";
 
 async function serveUiIfBuilt() {
   const __filename = fileURLToPath(import.meta.url);
@@ -474,9 +600,7 @@ async function serveUiIfBuilt() {
   return true;
 }
 
-if (isProd) {
-  void serveUiIfBuilt();
-} else {
+if (isProd || forceServeUi) {
   void serveUiIfBuilt();
 }
 

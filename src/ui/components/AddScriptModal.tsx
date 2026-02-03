@@ -5,6 +5,8 @@ const emptyForm = {
   description: "",
   selectedScript: "",
   customCommand: "",
+  color: "slate",
+  columnId: "custom",
   commands: [] as string[]
 };
 
@@ -13,10 +15,24 @@ type AddScriptModalProps = {
   packageScripts: Record<string, string>;
   existingNames: string[];
   mode: "add" | "edit";
-  initial?: { name: string; description?: string; commands: string[] };
+  initial?: {
+    name: string;
+    description?: string;
+    commands: string[];
+    color?: string;
+    columnId?: string;
+  };
   originalName?: string | null;
+  target: "custom" | "package";
+  columns: { id: string; name: string }[];
   onClose: () => void;
-  onSave: (payload: { name: string; description: string; command: string[] }) => void;
+  onSave: (payload: {
+    name: string;
+    description: string;
+    command: string[];
+    color?: string;
+    columnId?: string;
+  }) => void;
 };
 
 export default function AddScriptModal({
@@ -26,6 +42,8 @@ export default function AddScriptModal({
   mode,
   initial,
   originalName,
+  target,
+  columns,
   onClose,
   onSave
 }: AddScriptModalProps) {
@@ -49,8 +67,15 @@ export default function AddScriptModal({
         description: initial.description ?? "",
         selectedScript: "",
         customCommand: "",
+        color: initial.color ?? "slate",
+        columnId: initial.columnId ?? columns[0]?.id ?? "custom",
         commands: initial.commands ?? []
       });
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        columnId: columns[0]?.id ?? "custom"
+      }));
     }
 
     function onKeyDown(event: KeyboardEvent) {
@@ -64,7 +89,7 @@ export default function AddScriptModal({
   }, [open, initial]);
 
   function updateField(
-    key: "name" | "description" | "selectedScript" | "customCommand",
+    key: "name" | "description" | "selectedScript" | "customCommand" | "color" | "columnId",
     value: string
   ) {
     if (error) {
@@ -136,7 +161,9 @@ export default function AddScriptModal({
     onSave({
       name: trimmedName,
       description: form.description.trim(),
-      command: form.commands
+      command: form.commands,
+      color: target === "custom" ? form.color : undefined,
+      columnId: target === "custom" ? form.columnId : undefined
     });
     setForm(emptyForm);
     setError(null);
@@ -188,6 +215,41 @@ export default function AddScriptModal({
               placeholder="Runs the staging deploy steps"
             />
           </label>
+
+          {target === "custom" && (
+            <label>
+              Color
+              <select
+                value={form.color}
+                onChange={(event) => updateField("color", event.target.value)}
+              >
+                <option value="slate">Slate</option>
+                <option value="teal">Teal</option>
+                <option value="amber">Amber</option>
+                <option value="rose">Rose</option>
+                <option value="violet">Violet</option>
+                <option value="lime">Lime</option>
+                <option value="sky">Sky</option>
+                <option value="orange">Orange</option>
+              </select>
+            </label>
+          )}
+
+          {target === "custom" && (
+            <label>
+              Column
+              <select
+                value={form.columnId}
+                onChange={(event) => updateField("columnId", event.target.value)}
+              >
+                {columns.map((column) => (
+                  <option key={column.id} value={column.id}>
+                    {column.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <div className="command-row">
             <label>

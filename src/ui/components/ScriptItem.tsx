@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type ScriptItemProps = {
   name: string;
@@ -17,6 +18,7 @@ export default function ScriptItem({
   description,
   command,
   hidden,
+  color,
   onRun,
   onEdit,
   onDuplicate,
@@ -25,11 +27,13 @@ export default function ScriptItem({
 }: ScriptItemProps) {
   const detail = description ?? command;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   function openMenu(event: React.MouseEvent<HTMLDivElement>) {
     event.preventDefault();
     event.stopPropagation();
+    setMenuPos({ x: event.clientX, y: event.clientY });
     setMenuOpen(true);
   }
 
@@ -37,14 +41,18 @@ export default function ScriptItem({
     setMenuOpen(false);
   }
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (!menuRef.current || menuRef.current.contains(event.target as Node)) {
-        return;
-      }
-      setMenuOpen(false);
+  function runAction(action: () => void) {
+    closeMenu();
+    const immediate = (globalThis as typeof globalThis & { setImmediate?: (cb: () => void) => void })
+      .setImmediate;
+    if (immediate) {
+      immediate(action);
+    } else {
+      setTimeout(action, 0);
     }
+  }
 
+  useEffect(() => {
     function handleKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setMenuOpen(false);
@@ -52,12 +60,10 @@ export default function ScriptItem({
     }
 
     if (menuOpen) {
-      window.addEventListener("mousedown", handleClickOutside);
       window.addEventListener("keydown", handleKey);
     }
 
     return () => {
-      window.removeEventListener("mousedown", handleClickOutside);
       window.removeEventListener("keydown", handleKey);
     };
   }, [menuOpen]);
@@ -70,32 +76,46 @@ export default function ScriptItem({
 
   return (
     <div
-      className={`card clickable${hidden ? " hidden" : ""}`}
+      className={`card clickable${hidden ? " hidden" : ""}${color ? ` color-${color}` : ""}`}
       onClick={handleRun}
       onContextMenu={openMenu}
     >
       <h3 className="card-title">{name}</h3>
       <p className="card-meta">{detail}</p>
       {hidden && <span className="card-hidden">Hidden</span>}
-      <div
-        className={`context-menu${menuOpen ? " open" : ""}`}
-        role="menu"
-        ref={menuRef}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <button type="button" onClick={() => onEdit(name)}>
-          Edit
-        </button>
-        <button type="button" onClick={() => onDuplicate(name)}>
-          Duplicate
-        </button>
-        <button type="button" onClick={() => onToggleHidden(name, !hidden)}>
-          {hidden ? "Unhide" : "Hide"}
-        </button>
-        <button type="button" onClick={() => onDelete(name)}>
-          Delete
-        </button>
-      </div>
+      {menuOpen &&
+        menuPos &&
+        createPortal(
+          <div className="context-menu-layer">
+            <button
+              type="button"
+              className="context-menu-backdrop"
+              onClick={closeMenu}
+              aria-label="Close menu"
+            />
+            <div
+              className="context-menu open"
+              role="menu"
+              ref={menuRef}
+              style={{ left: menuPos.x, top: menuPos.y }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button type="button" onClick={() => runAction(() => onEdit(name))}>
+                Edit
+              </button>
+              <button type="button" onClick={() => runAction(() => onDuplicate(name))}>
+                Duplicate
+              </button>
+              <button type="button" onClick={() => runAction(() => onToggleHidden(name, !hidden))}>
+                {hidden ? "Unhide" : "Hide"}
+              </button>
+              <button type="button" onClick={() => runAction(() => onDelete(name))}>
+                Delete
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

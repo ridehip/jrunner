@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AppHeader from "./components/AppHeader";
 import AddScriptModal from "./components/AddScriptModal";
+import ColumnModal from "./components/ColumnModal";
 import ConfirmDialog from "./components/ConfirmDialog";
 import ScriptColumn from "./components/ScriptColumn";
 import TerminalDock, { TerminalEntry } from "./components/TerminalDock";
@@ -12,6 +13,8 @@ type CustomScript = {
   command: string[] | string;
   description?: string;
   hidden?: boolean;
+  color?: string;
+  columnId?: string;
 };
 
 type ScriptsResponse = {
@@ -20,6 +23,7 @@ type ScriptsResponse = {
   initialized?: boolean;
   overridesPresent?: boolean;
   hiddenScripts?: string[];
+  columns?: { id: string; name: string }[];
 };
 
 export default function App() {
@@ -36,10 +40,17 @@ export default function App() {
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [addTarget, setAddTarget] = useState<"custom" | "package">("custom");
+  const [columnModal, setColumnModal] = useState<{
+    open: boolean;
+    mode: "add" | "edit";
+    id?: string;
+    name?: string;
+  }>({ open: false, mode: "add" });
   const [modalInitial, setModalInitial] = useState<{
     name: string;
     description?: string;
     commands: string[];
+    color?: string;
   } | null>(null);
   const [originalName, setOriginalName] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{
@@ -73,12 +84,14 @@ export default function App() {
 
   const packageEntries = Object.entries(data?.packageScripts ?? {});
   const customEntries = data?.customScripts ?? [];
+  const columns = data?.columns ?? [{ id: "custom", name: "custom scripts" }];
 
   const packageScripts = useMemo(() => {
     return packageEntries.map(([name, command]) => ({
       name,
       command,
-      hidden: hiddenScripts.includes(name)
+      hidden: hiddenScripts.includes(name),
+      color: "grey"
     }));
   }, [packageEntries, hiddenScripts]);
 
@@ -87,7 +100,9 @@ export default function App() {
       name: script.name,
       description: script.description,
       command: Array.isArray(script.command) ? script.command.join(" && ") : script.command,
-      hidden: script.hidden === true || hiddenScripts.includes(script.name)
+      hidden: script.hidden === true || hiddenScripts.includes(script.name),
+      color: script.color ?? "slate",
+      columnId: script.columnId ?? "custom"
     }));
   }, [customEntries, hiddenScripts]);
 
@@ -109,6 +124,21 @@ export default function App() {
   const visibleCustomScripts = useMemo(() => {
     return showHidden ? customScripts : customScripts.filter((script) => !script.hidden);
   }, [customScripts, showHidden]);
+
+  const customScriptsByColumn = useMemo(() => {
+    const grouped = new Map<string, typeof visibleCustomScripts>();
+    for (const column of columns) {
+      grouped.set(column.id, []);
+    }
+    for (const script of visibleCustomScripts) {
+      const key = script.columnId ?? "custom";
+      if (!grouped.has(key)) {
+        grouped.set(key, []);
+      }
+      grouped.get(key)?.push(script);
+    }
+    return grouped;
+  }, [columns, visibleCustomScripts]);
 
   function handleRunFromPackage(name: string) {
     const command = packageScriptMap[name];
@@ -238,6 +268,8 @@ export default function App() {
     name: string;
     description: string;
     command: string[];
+    color?: string;
+    columnId?: string;
   }) {
     try {
       setSaving(true);
@@ -306,7 +338,12 @@ export default function App() {
     setModalInitial({
       name,
       description,
-      commands: Array.isArray(command) ? command : [command]
+      commands: Array.isArray(command) ? command : [command],
+      color: target === "custom" ? customEntries.find((item) => item.name === name)?.color : undefined,
+      columnId:
+        target === "custom"
+          ? customEntries.find((item) => item.name === name)?.columnId ?? "custom"
+          : undefined
     });
     setOriginalName(name);
     setShowModal(true);
@@ -451,6 +488,93 @@ export default function App() {
     });
   }
 
+  function openAddColumnModal() {
+    setColumnModal({ open: true, mode: "add" });
+  }
+
+  function openEditColumnModal(id: string, name: string) {
+    setColumnModal({ open: true, mode: "edit", id, name });
+  }
+
+  async function saveColumn(name: string) {
+    try {
+      setSaving(true);
+      if (columnModal.mode === "add") {
+        const res = await fetch("/api/columns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        if (!res.ok) {
+          throw new Error("Failed to create column");
+        }
+        const json = (await res.json()) as { columns: { id: string; name: string }[]; customScripts: CustomScript[] };
+        setData((prev) => ({
+          packageScripts: prev?.packageScripts ?? {},
+          customScripts: json.customScripts ?? prev?.customScripts ?? [],
+          columns: json.columns ?? prev?.columns ?? []
+        }));
+      } else if (columnModal.id) {
+        const res = await fetch(`/api/columns/${columnModal.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        if (!res.ok) {
+          throw new Error("Failed to update column");
+        }
+        const json = (await res.json()) as { columns: { id: string; name: string }[]; customScripts: CustomScript[] };
+        setData((prev) => ({
+          packageScripts: prev?.packageScripts ?? {},
+          customScripts: json.customScripts ?? prev?.customScripts ?? [],
+          columns: json.columns ?? prev?.columns ?? []
+        }));
+      }
+      setColumnModal({ open: false, mode: "add" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function confirmDeleteColumn(id: string, name: string) {
+    openConfirmDialog({
+      title: "Delete column",
+      message: `Delete "${name}"? Scripts will move to the default column.`,
+      options: [
+        { label: "Cancel", value: "cancel" },
+        { label: "Delete column", value: "delete", tone: "danger" }
+      ],
+      onSelect: async (value) => {
+        closeConfirmDialog();
+        if (value !== "delete") {
+          return;
+        }
+        try {
+          setSaving(true);
+          const res = await fetch(`/api/columns/${id}`, { method: "DELETE" });
+          if (!res.ok) {
+            throw new Error("Failed to delete column");
+          }
+          const json = (await res.json()) as {
+            columns: { id: string; name: string }[];
+            customScripts: CustomScript[];
+          };
+          setData((prev) => ({
+            packageScripts: prev?.packageScripts ?? {},
+            customScripts: json.customScripts ?? prev?.customScripts ?? [],
+            columns: json.columns ?? prev?.columns ?? []
+          }));
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Unknown error");
+        } finally {
+          setSaving(false);
+        }
+      }
+    });
+  }
+
   function handleDuplicateFromPackage(name: string) {
     const command = packageScriptMap[name];
     if (!command) {
@@ -471,25 +595,26 @@ export default function App() {
 
   return (
     <main className="app">
-      <AppHeader
-        title="jrunner"
-        subtitle="Script runner UI (package.json + jrunner-conf.json)"
-        notice={null}
-      />
+      <div className="app-main">
+        <AppHeader
+          title="jrunner"
+          subtitle="Script runner UI (package.json + jrunner-conf.json)"
+          notice={null}
+        />
 
-      {error && <div>{error}</div>}
+        {error && <div>{error}</div>}
 
-      {!initialized && (
-        <div className="wizard">
-          <h2>Jrunner is not initialized in this project.</h2>
-          <p>Would you like to initialize it?</p>
-          <div className="wizard-actions">
-            <button type="button" className="run" onClick={handleInit} disabled={saving}>
-              Yes, initialize
-            </button>
+        {!initialized && (
+          <div className="wizard">
+            <h2>Jrunner is not initialized in this project.</h2>
+            <p>Would you like to initialize it?</p>
+            <div className="wizard-actions">
+              <button type="button" className="run" onClick={handleInit} disabled={saving}>
+                Yes, initialize
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {initialized && (
       <section className="board">
@@ -507,28 +632,37 @@ export default function App() {
           addCardLabel="+ Add script"
           onAddCard={handleAddFromPackageColumn}
         />
-        <ScriptColumn
-          title="custom scripts"
-          scripts={visibleCustomScripts}
-          emptyLabel="No custom scripts found."
-          showEmpty={false}
-          actionLabel="+"
-          onAction={() => openAddModal("custom")}
-          onRun={handleRunFromCustom}
-          onEdit={(name) => {
-            const script = customEntries.find((item) => item.name === name);
-            if (script) {
-              openEditModal(script.name, script.command, script.description, "custom");
-            }
-          }}
-          onDuplicate={handleDuplicateFromCustom}
-          onDelete={handleDeleteCustom}
-          onToggleHidden={(name, hidden) => handleHideToggle(name, hidden)}
-          addCardLabel="+ Add script"
-          onAddCard={openAddModal}
-        />
+        {columns.map((column) => (
+          <ScriptColumn
+            key={column.id}
+            title={column.name}
+            scripts={customScriptsByColumn.get(column.id) ?? []}
+            emptyLabel="No custom scripts found."
+            showEmpty={false}
+            actionLabel={undefined}
+            onAction={undefined}
+            onRun={handleRunFromCustom}
+            onEdit={(name) => {
+              const script = customEntries.find((item) => item.name === name);
+              if (script) {
+                openEditModal(script.name, script.command, script.description, "custom");
+              }
+            }}
+            onDuplicate={handleDuplicateFromCustom}
+            onDelete={handleDeleteCustom}
+            onToggleHidden={(name, hidden) => handleHideToggle(name, hidden)}
+            addCardLabel="+ Add script"
+            onAddCard={() => openAddModal("custom")}
+            onEditColumn={() => openEditColumnModal(column.id, column.name)}
+            onDeleteColumn={() => confirmDeleteColumn(column.id, column.name)}
+          />
+        ))}
+        <button className="card add-card" type="button" onClick={openAddColumnModal}>
+          + Add column
+        </button>
       </section>
       )}
+      </div>
 
       <AddScriptModal
         open={showModal}
@@ -537,8 +671,17 @@ export default function App() {
         mode={modalMode}
         initial={modalInitial ?? undefined}
         originalName={originalName}
+        target={addTarget}
+        columns={columns}
         onClose={() => setShowModal(false)}
         onSave={handleSaveScript}
+      />
+      <ColumnModal
+        open={columnModal.open}
+        title={columnModal.mode === "add" ? "Add column" : "Edit column"}
+        initialName={columnModal.name}
+        onClose={() => setColumnModal({ open: false, mode: "add" })}
+        onSave={saveColumn}
       />
       <ConfirmDialog
         open={!!confirm}

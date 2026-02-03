@@ -11,6 +11,29 @@
           "vite build"
         ],
         "description": "tttt"
+      },
+      {
+        "name": "rstr",
+        "command": [
+          "rst"
+        ],
+        "description": "rst",
+        "color": "orange"
+      },
+      {
+        "name": "asdasd",
+        "command": [
+          "asd"
+        ],
+        "description": "asdasd",
+        "color": "slate",
+        "columnId": "asdasd"
+      }
+    ],
+    "columns": [
+      {
+        "id": "asdasd",
+        "name": "asdasd"
       }
     ]
   }

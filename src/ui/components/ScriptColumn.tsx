@@ -5,6 +5,7 @@ type ScriptItem = {
   name: string;
   description?: string;
   command: string;
+  color?: string;
 };
 
 type ScriptColumnProps = {
@@ -16,6 +17,8 @@ type ScriptColumnProps = {
   onAction?: () => void;
   addCardLabel?: string;
   onAddCard?: () => void;
+  onEditColumn?: () => void;
+  onDeleteColumn?: () => void;
   onRun?: (name: string) => void;
   onEdit?: (name: string) => void;
   onDuplicate?: (name: string) => void;
@@ -32,6 +35,8 @@ export default function ScriptColumn({
   onAction,
   addCardLabel,
   onAddCard,
+  onEditColumn,
+  onDeleteColumn,
   onRun,
   onEdit,
   onDuplicate,
@@ -47,6 +52,32 @@ export default function ScriptColumn({
             {actionLabel}
           </button>
         )}
+        {(onEditColumn || onDeleteColumn) && (
+          <div className="column-actions">
+            {onEditColumn && (
+              <button
+                type="button"
+                className="icon-ghost"
+                onClick={onEditColumn}
+                aria-label="Edit column"
+                title="Edit column"
+              >
+                <i className="fa-solid fa-pen" />
+              </button>
+            )}
+            {onDeleteColumn && (
+              <button
+                type="button"
+                className="icon-ghost"
+                onClick={onDeleteColumn}
+                aria-label="Delete column"
+                title="Delete column"
+              >
+                <i className="fa-solid fa-xmark" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
       {scripts.length === 0 && showEmpty ? (
         <div className="card">
@@ -60,6 +91,7 @@ export default function ScriptColumn({
             description={script.description}
             command={script.command}
             hidden={script.hidden}
+            color={script.color}
             onRun={onRun ?? (() => {})}
             onEdit={onEdit ?? (() => {})}
             onDuplicate={onDuplicate ?? (() => {})}
