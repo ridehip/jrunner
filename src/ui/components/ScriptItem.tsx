@@ -7,10 +7,15 @@ type ScriptItemProps = {
   command: string;
   hidden?: boolean;
   onRun: (name: string) => void;
+  onStackAdd: (name: string) => void;
   onEdit: (name: string) => void;
   onDuplicate: (name: string) => void;
   onDelete: (name: string) => void;
   onToggleHidden: (name: string, hidden: boolean) => void;
+  draggable?: boolean;
+  onDragStart?: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDragOver?: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDrop?: (event: React.DragEvent<HTMLDivElement>) => void;
 };
 
 export default function ScriptItem({
@@ -20,10 +25,15 @@ export default function ScriptItem({
   hidden,
   color,
   onRun,
+  onStackAdd,
   onEdit,
   onDuplicate,
   onDelete,
-  onToggleHidden
+  onToggleHidden,
+  draggable,
+  onDragStart,
+  onDragOver,
+  onDrop
 }: ScriptItemProps) {
   const detail = description ?? command;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -68,9 +78,13 @@ export default function ScriptItem({
     };
   }, [menuOpen]);
 
-  function handleRun() {
+  function handleRun(event: React.MouseEvent<HTMLDivElement>) {
     if (!menuOpen) {
-      onRun(name);
+      if (event.shiftKey) {
+        onStackAdd(name);
+      } else {
+        onRun(name);
+      }
     }
   }
 
@@ -79,6 +93,13 @@ export default function ScriptItem({
       className={`card clickable${hidden ? " hidden" : ""}${color ? ` color-${color}` : ""}`}
       onClick={handleRun}
       onContextMenu={openMenu}
+      draggable={draggable}
+      onDragStart={(event) => {
+        event.dataTransfer.setData("text/plain", name);
+        onDragStart?.(event);
+      }}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
     >
       <h3 className="card-title">{name}</h3>
       <p className="card-meta">{detail}</p>

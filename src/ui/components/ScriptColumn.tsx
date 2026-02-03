@@ -19,11 +19,17 @@ type ScriptColumnProps = {
   onAddCard?: () => void;
   onEditColumn?: () => void;
   onDeleteColumn?: () => void;
+  onDragColumnStart?: () => void;
+  onDropColumn?: () => void;
   onRun?: (name: string) => void;
+  onStackAdd?: (name: string) => void;
   onEdit?: (name: string) => void;
   onDuplicate?: (name: string) => void;
   onDelete?: (name: string) => void;
   onToggleHidden?: (name: string, hidden: boolean) => void;
+  onDragScriptStart?: (name: string) => void;
+  onDropScript?: (name: string, index: number) => void;
+  onDropToColumnEnd?: () => void;
 };
 
 export default function ScriptColumn({
@@ -37,15 +43,34 @@ export default function ScriptColumn({
   onAddCard,
   onEditColumn,
   onDeleteColumn,
+  onDragColumnStart,
+  onDropColumn,
   onRun,
+  onStackAdd,
   onEdit,
   onDuplicate,
   onDelete,
-  onToggleHidden
+  onToggleHidden,
+  onDragScriptStart,
+  onDropScript,
+  onDropToColumnEnd
 }: ScriptColumnProps) {
   return (
-    <div className="column">
-      <div className="column-header">
+    <div
+      className="column"
+      onDragOver={(event) => onDropToColumnEnd && event.preventDefault()}
+      onDrop={onDropToColumnEnd}
+    >
+      <div
+        className="column-header"
+        draggable={!!onDragColumnStart}
+        onDragStart={(event) => {
+          event.dataTransfer.setData("text/plain", title);
+          onDragColumnStart?.();
+        }}
+        onDragOver={(event) => onDropColumn && event.preventDefault()}
+        onDrop={onDropColumn}
+      >
         <h2>{title}</h2>
         {actionLabel && onAction && (
           <button className="ghost column-action" type="button" onClick={onAction}>
@@ -84,7 +109,7 @@ export default function ScriptColumn({
           <p>{emptyLabel}</p>
         </div>
       ) : (
-        scripts.map((script) => (
+        scripts.map((script, index) => (
           <ScriptItem
             key={script.name}
             name={script.name}
@@ -93,10 +118,15 @@ export default function ScriptColumn({
             hidden={script.hidden}
             color={script.color}
             onRun={onRun ?? (() => {})}
+            onStackAdd={onStackAdd ?? (() => {})}
             onEdit={onEdit ?? (() => {})}
             onDuplicate={onDuplicate ?? (() => {})}
             onDelete={onDelete ?? (() => {})}
             onToggleHidden={onToggleHidden ?? (() => {})}
+            draggable={!!onDragScriptStart}
+            onDragStart={() => onDragScriptStart?.(script.name)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={() => onDropScript?.(script.name, index)}
           />
         ))
       )}

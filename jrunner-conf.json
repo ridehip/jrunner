@@ -10,7 +10,8 @@
           "echo \"done...\"",
           "vite build"
         ],
-        "description": "tttt"
+        "description": "tttt",
+        "columnId": "custom"
       },
       {
         "name": "rstr",
@@ -18,7 +19,17 @@
           "rst"
         ],
         "description": "rst",
-        "color": "orange"
+        "color": "orange",
+        "columnId": "custom"
+      },
+      {
+        "name": "lkjjaskljlkajlskj",
+        "command": [
+          "asas"
+        ],
+        "description": "asasasas",
+        "color": "slate",
+        "columnId": "asdasd"
       },
       {
         "name": "asdasd",
@@ -28,12 +39,25 @@
         "description": "asdasd",
         "color": "slate",
         "columnId": "asdasd"
+      },
+      {
+        "name": "lk;jljlkjsd",
+        "command": [
+          "aas"
+        ],
+        "description": "",
+        "color": "slate",
+        "columnId": "custom"
       }
     ],
     "columns": [
       {
         "id": "asdasd",
         "name": "asdasd"
+      },
+      {
+        "id": "sdkhkjsd",
+        "name": "sdkhkjsd"
       }
     ]
   }

@@ -132,6 +132,10 @@ app.get("/api/scripts", async (_req, res) => {
     const packageRaw = await fs.readFile(packageJsonPath, "utf-8");
     const packageJson = JSON.parse(packageRaw);
     const packageScripts = packageJson?.scripts ?? {};
+    const packageMeta = {
+      name: packageJson?.name ?? "",
+      version: packageJson?.version ?? ""
+    };
 
     let customScripts = [];
     let columns = [{ id: "custom", name: "custom scripts" }];
@@ -176,6 +180,7 @@ app.get("/api/scripts", async (_req, res) => {
 
     res.json({
       packageScripts,
+      packageMeta,
       customScripts,
       initialized,
       overridesPresent,
@@ -285,6 +290,36 @@ app.post("/api/custom-scripts", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to save custom script" });
+  }
+});
+
+app.post("/api/custom-scripts/arrange", async (req, res) => {
+  try {
+    const root = process.cwd();
+    const confPath = path.join(root, "jrunner-conf.json");
+    const { order, columnIdByName } = req.body ?? {};
+    if (!Array.isArray(order) || typeof columnIdByName !== "object") {
+      return res.status(400).json({ error: "Invalid arrange payload" });
+    }
+
+    let confJson = await readConfig(confPath);
+    confJson = normalizeConfig(confJson);
+
+    const map = new Map(confJson.pannels.customScripts.map((s: any) => [s.name, s]));
+    const arranged = order
+      .map((name: string) => map.get(name))
+      .filter(Boolean)
+      .map((script: any) => ({
+        ...script,
+        columnId: columnIdByName[script.name] ?? script.columnId ?? "custom"
+      }));
+
+    confJson.pannels.customScripts = arranged;
+    await fs.writeFile(confPath, JSON.stringify(confJson, null, 2));
+
+    res.json({ customScripts: confJson.pannels.customScripts });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to arrange custom scripts" });
   }
 });
 
@@ -403,6 +438,29 @@ app.post("/api/columns", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to create column" });
+  }
+});
+
+app.post("/api/columns/reorder", async (req, res) => {
+  try {
+    const root = process.cwd();
+    const confPath = path.join(root, "jrunner-conf.json");
+    const { order } = req.body ?? {};
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ error: "Invalid column order payload" });
+    }
+
+    let confJson = await readConfig(confPath);
+    confJson = normalizeConfig(confJson);
+
+    const map = new Map(confJson.pannels.columns.map((col: any) => [col.id, col]));
+    const arranged = order.map((id: string) => map.get(id)).filter(Boolean);
+    confJson.pannels.columns = arranged;
+    await fs.writeFile(confPath, JSON.stringify(confJson, null, 2));
+
+    res.json({ columns: confJson.pannels.columns });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to reorder columns" });
   }
 });
 

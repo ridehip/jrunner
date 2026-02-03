@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
-import AppHeader from "./components/AppHeader";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import AddScriptModal from "./components/AddScriptModal";
 import ColumnModal from "./components/ColumnModal";
 import ConfirmDialog from "./components/ConfirmDialog";
 import ScriptColumn from "./components/ScriptColumn";
+import StackPanel from "./components/StackPanel";
 import TerminalDock, { TerminalEntry } from "./components/TerminalDock";
 
 type PackageScripts = Record<string, string>;
@@ -19,6 +19,7 @@ type CustomScript = {
 
 type ScriptsResponse = {
   packageScripts: PackageScripts;
+  packageMeta?: { name?: string; version?: string };
   customScripts: CustomScript[];
   initialized?: boolean;
   overridesPresent?: boolean;
@@ -33,6 +34,10 @@ export default function App() {
   const [overridesPresent, setOverridesPresent] = useState(true);
   const [hiddenScripts, setHiddenScripts] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
+  const [packageMeta, setPackageMeta] = useState<{ name: string; version: string }>({
+    name: "jrunner",
+    version: ""
+  });
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [terminals, setTerminals] = useState<TerminalEntry[]>([]);
@@ -52,6 +57,9 @@ export default function App() {
     commands: string[];
     color?: string;
   } | null>(null);
+  const dragState = useRef<{ type: "column" | "script"; id: string; columnId?: string } | null>(
+    null
+  );
   const [originalName, setOriginalName] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -59,6 +67,9 @@ export default function App() {
     options: { label: string; value: string; tone?: "primary" | "danger" | "neutral" }[];
     onSelect: (value: string) => void | Promise<void>;
   } | null>(null);
+  const [stack, setStack] = useState<
+    { id: string; label: string; detail?: string; command: string | string[]; color?: string }[]
+  >([]);
 
   async function loadScripts(signal?: AbortSignal) {
     const res = await fetch("/api/scripts", { signal });
@@ -70,6 +81,10 @@ export default function App() {
     setInitialized(json.initialized !== false);
     setOverridesPresent(json.overridesPresent !== false);
     setHiddenScripts(json.hiddenScripts ?? []);
+    setPackageMeta({
+      name: json.packageMeta?.name ?? "jrunner",
+      version: json.packageMeta?.version ?? ""
+    });
   }
 
   useEffect(() => {
@@ -140,6 +155,114 @@ export default function App() {
     return grouped;
   }, [columns, visibleCustomScripts]);
 
+  function handleColumnDragStart(id: string) {
+    dragState.current = { type: "column", id };
+  }
+
+  async function handleColumnDrop(targetId: string) {
+    if (!dragState.current || dragState.current.type !== "column") {
+      return;
+    }
+    const fromId = dragState.current.id;
+    if (fromId === targetId) {
+      return;
+    }
+    const current = columns.map((col) => col.id);
+    const fromIndex = current.indexOf(fromId);
+    const toIndex = current.indexOf(targetId);
+    if (fromIndex === -1 || toIndex === -1) {
+      return;
+    }
+    const next = [...current];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    const map = new Map(columns.map((c) => [c.id, c]));
+    setData((prev) => ({ ...prev, columns: next.map((id) => map.get(id)!).filter(Boolean) }));
+    await fetch("/api/columns/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order: next })
+    });
+    dragState.current = null;
+  }
+
+  function handleScriptDragStart(name: string, columnId: string) {
+    dragState.current = { type: "script", id: name, columnId };
+  }
+
+  async function handleScriptDrop(targetName: string, targetIndex: number, targetColumnId: string) {
+    if (!dragState.current || dragState.current.type !== "script") {
+      return;
+    }
+    const sourceName = dragState.current.id;
+    const sourceColumnId = dragState.current.columnId ?? "custom";
+    if (sourceName === targetName && sourceColumnId === targetColumnId) {
+      return;
+    }
+    const ordered = [...customEntries];
+    const sourceIndex = ordered.findIndex((s) => s.name === sourceName);
+    if (sourceIndex === -1) {
+      return;
+    }
+    const [moved] = ordered.splice(sourceIndex, 1);
+    moved.columnId = targetColumnId;
+    const targetIndices = ordered
+      .map((s, idx) => ({ s, idx }))
+      .filter(({ s }) => (s.columnId ?? "custom") === targetColumnId);
+    const insertIndex =
+      targetIndices[targetIndex]?.idx ?? ordered.length;
+    ordered.splice(insertIndex, 0, moved);
+
+    const columnIdByName = Object.fromEntries(
+      ordered.map((s) => [s.name, s.columnId ?? "custom"])
+    );
+    const order = ordered.map((s) => s.name);
+    setData((prev) => ({ ...prev, customScripts: ordered }));
+
+    await fetch("/api/custom-scripts/arrange", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order, columnIdByName })
+    });
+    dragState.current = null;
+  }
+
+  async function handleScriptDropToEnd(targetColumnId: string) {
+    if (!dragState.current || dragState.current.type !== "script") {
+      return;
+    }
+    const sourceName = dragState.current.id;
+    const ordered = [...customEntries];
+    const sourceIndex = ordered.findIndex((s) => s.name === sourceName);
+    if (sourceIndex === -1) {
+      return;
+    }
+    const [moved] = ordered.splice(sourceIndex, 1);
+    moved.columnId = targetColumnId;
+    const lastIndex = [...ordered]
+      .map((s, idx) => ({ s, idx }))
+      .filter(({ s }) => (s.columnId ?? "custom") === targetColumnId)
+      .pop()?.idx;
+    if (lastIndex === undefined) {
+      ordered.push(moved);
+    } else {
+      ordered.splice(lastIndex + 1, 0, moved);
+    }
+
+    const columnIdByName = Object.fromEntries(
+      ordered.map((s) => [s.name, s.columnId ?? "custom"])
+    );
+    const order = ordered.map((s) => s.name);
+    setData((prev) => ({ ...prev, customScripts: ordered }));
+
+    await fetch("/api/custom-scripts/arrange", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order, columnIdByName })
+    });
+    dragState.current = null;
+  }
+
   function handleRunFromPackage(name: string) {
     const command = packageScriptMap[name];
     if (!command) {
@@ -154,6 +277,48 @@ export default function App() {
       return;
     }
     runScript(name, script.command);
+  }
+
+  function addToStackFromPackage(name: string) {
+    const command = packageScriptMap[name];
+    if (!command) {
+      return;
+    }
+    setStack((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), label: name, detail: command, command, color: "grey" }
+    ]);
+  }
+
+  function addToStackFromCustom(name: string) {
+    const script = customEntries.find((item) => item.name === name);
+    if (!script) {
+      return;
+    }
+    const detail = Array.isArray(script.command) ? script.command.join(" && ") : script.command;
+    setStack((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        label: name,
+        detail,
+        command: script.command,
+        color: script.color ?? "slate"
+      }
+    ]);
+  }
+
+  function removeFromStack(id: string) {
+    setStack((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function reorderStack(from: number, to: number) {
+    setStack((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
   }
 
   async function runScript(name: string, command: string | string[]) {
@@ -596,10 +761,22 @@ export default function App() {
   return (
     <main className="app">
       <div className="app-main">
-        <AppHeader
-          title="jrunner"
-          subtitle="Script runner UI (package.json + jrunner-conf.json)"
-          notice={null}
+        <StackPanel
+          items={stack}
+          onRemove={removeFromStack}
+          onReorder={reorderStack}
+          placeholder={`${packageMeta.name} (${packageMeta.version})`}
+          onExecute={async () => {
+            if (stack.length === 0) {
+              return;
+            }
+            const commands = stack.flatMap((item) =>
+              Array.isArray(item.command) ? item.command : [item.command]
+            );
+            await runScript("stack", commands);
+            setStack([]);
+          }}
+          onClear={() => setStack([])}
         />
 
         {error && <div>{error}</div>}
@@ -616,47 +793,54 @@ export default function App() {
           </div>
         )}
 
-      {initialized && (
-      <section className="board">
-        <ScriptColumn
-          title="package.json scripts"
-          scripts={visiblePackageScripts}
-          emptyLabel="No scripts found."
-          actionLabel={showHidden ? "Hide hidden" : "Show hidden"}
-          onAction={() => setShowHidden((prev) => !prev)}
-          onRun={handleRunFromPackage}
-          onEdit={(name) => openEditModal(name, packageScriptMap[name] ?? "", undefined, "package")}
-          onDuplicate={handleDuplicateFromPackage}
-          onDelete={handleDeletePackage}
-          onToggleHidden={(name, hidden) => handleHideToggle(name, hidden)}
-          addCardLabel="+ Add script"
-          onAddCard={handleAddFromPackageColumn}
-        />
-        {columns.map((column) => (
+        {initialized && (
+        <section className="board">
           <ScriptColumn
-            key={column.id}
-            title={column.name}
-            scripts={customScriptsByColumn.get(column.id) ?? []}
-            emptyLabel="No custom scripts found."
-            showEmpty={false}
-            actionLabel={undefined}
-            onAction={undefined}
-            onRun={handleRunFromCustom}
-            onEdit={(name) => {
-              const script = customEntries.find((item) => item.name === name);
-              if (script) {
-                openEditModal(script.name, script.command, script.description, "custom");
-              }
-            }}
-            onDuplicate={handleDuplicateFromCustom}
-            onDelete={handleDeleteCustom}
+            title="package.json scripts"
+            scripts={visiblePackageScripts}
+            emptyLabel="No scripts found."
+          actionLabel={showHidden ? "Hide hidden" : "Show hidden"}
+            onAction={() => setShowHidden((prev) => !prev)}
+            onRun={handleRunFromPackage}
+            onStackAdd={addToStackFromPackage}
+            onEdit={(name) => openEditModal(name, packageScriptMap[name] ?? "", undefined, "package")}
+            onDuplicate={handleDuplicateFromPackage}
+            onDelete={handleDeletePackage}
             onToggleHidden={(name, hidden) => handleHideToggle(name, hidden)}
             addCardLabel="+ Add script"
-            onAddCard={() => openAddModal("custom")}
-            onEditColumn={() => openEditColumnModal(column.id, column.name)}
-            onDeleteColumn={() => confirmDeleteColumn(column.id, column.name)}
+            onAddCard={handleAddFromPackageColumn}
           />
-        ))}
+          {columns.map((column) => (
+            <ScriptColumn
+              key={column.id}
+              title={column.name}
+              scripts={customScriptsByColumn.get(column.id) ?? []}
+              emptyLabel="No custom scripts found."
+              showEmpty={false}
+              actionLabel={undefined}
+              onAction={undefined}
+              onRun={handleRunFromCustom}
+              onStackAdd={addToStackFromCustom}
+              onEdit={(name) => {
+                const script = customEntries.find((item) => item.name === name);
+                if (script) {
+                  openEditModal(script.name, script.command, script.description, "custom");
+                }
+              }}
+              onDuplicate={handleDuplicateFromCustom}
+              onDelete={handleDeleteCustom}
+              onToggleHidden={(name, hidden) => handleHideToggle(name, hidden)}
+              addCardLabel="+ Add script"
+              onAddCard={() => openAddModal("custom")}
+              onEditColumn={() => openEditColumnModal(column.id, column.name)}
+              onDeleteColumn={() => confirmDeleteColumn(column.id, column.name)}
+              onDragColumnStart={() => handleColumnDragStart(column.id)}
+              onDropColumn={() => handleColumnDrop(column.id)}
+              onDragScriptStart={(name) => handleScriptDragStart(name, column.id)}
+              onDropScript={(name, index) => handleScriptDrop(name, index, column.id)}
+              onDropToColumnEnd={() => handleScriptDropToEnd(column.id)}
+            />
+          ))}
         <button className="card add-card" type="button" onClick={openAddColumnModal}>
           + Add column
         </button>
