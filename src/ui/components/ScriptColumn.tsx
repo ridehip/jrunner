@@ -104,37 +104,39 @@ export default function ScriptColumn({
           </div>
         )}
       </div>
-      {scripts.length === 0 && showEmpty ? (
-        <div className="card">
-          <p>{emptyLabel}</p>
-        </div>
-      ) : (
-        scripts.map((script, index) => (
-          <ScriptItem
-            key={script.name}
-            name={script.name}
-            description={script.description}
-            command={script.command}
-            hidden={script.hidden}
-            color={script.color}
-            onRun={onRun ?? (() => {})}
-            onStackAdd={onStackAdd ?? (() => {})}
-            onEdit={onEdit ?? (() => {})}
-            onDuplicate={onDuplicate ?? (() => {})}
-            onDelete={onDelete ?? (() => {})}
-            onToggleHidden={onToggleHidden ?? (() => {})}
-            draggable={!!onDragScriptStart}
-            onDragStart={() => onDragScriptStart?.(script.name)}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={() => onDropScript?.(script.name, index)}
-          />
-        ))
-      )}
-      {addCardLabel && onAddCard && (
-        <button className="card add-card" type="button" onClick={onAddCard}>
-          {addCardLabel}
-        </button>
-      )}
+      <div className="column-body">
+        {scripts.length === 0 && showEmpty ? (
+          <div className="card">
+            <p>{emptyLabel}</p>
+          </div>
+        ) : (
+          scripts.map((script, index) => (
+            <ScriptItem
+              key={script.name}
+              name={script.name}
+              description={script.description}
+              command={script.command}
+              hidden={script.hidden}
+              color={script.color}
+              onRun={onRun ?? (() => {})}
+              onStackAdd={onStackAdd ?? (() => {})}
+              onEdit={onEdit ?? (() => {})}
+              onDuplicate={onDuplicate ?? (() => {})}
+              onDelete={onDelete ?? (() => {})}
+              onToggleHidden={onToggleHidden ?? (() => {})}
+              draggable={!!onDragScriptStart}
+              onDragStart={() => onDragScriptStart?.(script.name)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => onDropScript?.(script.name, index)}
+            />
+          ))
+        )}
+        {addCardLabel && onAddCard && (
+          <button className="card add-card" type="button" onClick={onAddCard}>
+            {addCardLabel}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

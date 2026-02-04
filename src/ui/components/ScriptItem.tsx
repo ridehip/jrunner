@@ -6,6 +6,7 @@ type ScriptItemProps = {
   description?: string;
   command: string;
   hidden?: boolean;
+  color?: string;
   onRun: (name: string) => void;
   onStackAdd: (name: string) => void;
   onEdit: (name: string) => void;
@@ -36,9 +37,15 @@ export default function ScriptItem({
   onDrop
 }: ScriptItemProps) {
   const detail = description ?? command;
+  const formattedCommand = command
+    .split("&&")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" && ");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
 
   function openMenu(event: React.MouseEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -88,11 +95,21 @@ export default function ScriptItem({
     }
   }
 
+  function showTooltip() {
+    setTooltipOpen(true);
+  }
+
+  function hideTooltip() {
+    setTooltipOpen(false);
+  }
+
   return (
     <div
       className={`card clickable${hidden ? " hidden" : ""}${color ? ` color-${color}` : ""}`}
       onClick={handleRun}
       onContextMenu={openMenu}
+      onMouseEnter={showTooltip}
+      onMouseLeave={hideTooltip}
       draggable={draggable}
       onDragStart={(event) => {
         event.dataTransfer.setData("text/plain", name);
@@ -104,6 +121,14 @@ export default function ScriptItem({
       <h3 className="card-title">{name}</h3>
       <p className="card-meta">{detail}</p>
       {hidden && <span className="card-hidden">Hidden</span>}
+      {tooltipOpen &&
+        createPortal(
+          <div className="card-tooltip">
+            <div className="card-tooltip-title">{name}</div>
+            <pre className="card-tooltip-command">{formattedCommand}</pre>
+          </div>,
+          document.body
+        )}
       {menuOpen &&
         menuPos &&
         createPortal(
