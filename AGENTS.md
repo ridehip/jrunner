@@ -5,14 +5,15 @@
 - `src/ui/` contains the React SPA with `src/ui/index.html`, `src/ui/main.tsx`, and shared styles in `src/ui/styles.css`.
 - `src/ui/components/` contains UI components. Components must be separated into their own files (one component per file).
 - `src/shared/` is reserved for cross-cutting logic (config parsing, shared types).
-- `jrunner-conf.json` is a local mock config; `jrunner-conf.template.json` is the template.
+- `jrunner-conf.json` is the main config; `.jrunner-conf-overrides.json` is optional for local overrides (gitignored).
+- `jrunner-conf.template.json` is a template reference.
 
 ## Build, Test, and Development Commands
 - `pnpm install`: install dependencies.
 - `pnpm dev`: run server (`tsx watch`) and UI (Vite) together.
 - `pnpm dev:server`: run the Express server in watch mode.
 - `pnpm dev:ui`: run the Vite dev server.
-- `pnpm build`: build the UI to `dist/ui`.
+- `pnpm build`: build UI + server + CLI.
 - `pnpm start`: start the server (expects a production UI build).
 - `pnpm test`: placeholder until a test runner is added.
 
@@ -32,3 +33,46 @@
 
 ## Security & Configuration Tips
 - Avoid committing secrets. Store environment-specific settings in local config files (for example, `.env`) and document required variables in the README when added.
+- `.jrunner-conf-overrides.json` must be in `.gitignore`.
+
+## Config Snippets
+
+Minimal `jrunner-conf.json`:\n
+```json
+{
+  "pannels": {
+    "name": "Default",
+    "prepare": [],
+    "description": "",
+    "columns": [
+      { "id": "custom", "name": "custom scripts" }
+    ],
+    "customScripts": [
+      {
+        "name": "lint",
+        "command": ["pnpm lint"],
+        "description": "Run lint",
+        "color": "slate",
+        "columnId": "custom"
+      }
+    ]
+  }
+}
+```
+
+Minimal `.jrunner-conf-overrides.json`:\n
+```json
+{
+  "pannels": {
+    "name": "Default",
+    "prepare": [],
+    "description": "",
+    "columns": [
+      { "id": "custom", "name": "custom scripts" }
+    ],
+    "customScripts": [
+      { "name": "lint", "hidden": true }
+    ]
+  }
+}
+```

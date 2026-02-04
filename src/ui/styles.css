@@ -144,6 +144,7 @@ body {
   box-shadow: var(--card-shadow);
   position: relative;
   cursor: pointer;
+  width: 15rem;
   transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
