@@ -4,24 +4,28 @@ type ColumnModalProps = {
   open: boolean;
   title: string;
   initialName?: string;
+  initialColor?: string;
   onClose: () => void;
-  onSave: (name: string) => void;
+  onSave: (name: string, color: string) => void;
 };
 
 export default function ColumnModal({
   open,
   title,
   initialName,
+  initialColor,
   onClose,
   onSave
 }: ColumnModalProps) {
   const [name, setName] = useState(initialName ?? "");
+  const [color, setColor] = useState(initialColor ?? "");
 
   useEffect(() => {
     if (!open) {
       return;
     }
     setName(initialName ?? "");
+    setColor(initialColor ?? "");
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -31,7 +35,7 @@ export default function ColumnModal({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, initialName, onClose]);
+  }, [open, initialName, initialColor, onClose]);
 
   if (!open) {
     return null;
@@ -48,7 +52,7 @@ export default function ColumnModal({
     if (!trimmed) {
       return;
     }
-    onSave(trimmed);
+    onSave(trimmed, color);
   }
 
   return (
@@ -69,6 +73,20 @@ export default function ColumnModal({
               onChange={(event) => setName(event.target.value)}
               placeholder="Deploy"
             />
+          </label>
+          <label>
+            Color
+            <select value={color} onChange={(event) => setColor(event.target.value)}>
+              <option value="">Default</option>
+              <option value="slate">Slate</option>
+              <option value="teal">Teal</option>
+              <option value="amber">Amber</option>
+              <option value="rose">Rose</option>
+              <option value="violet">Violet</option>
+              <option value="lime">Lime</option>
+              <option value="sky">Sky</option>
+              <option value="orange">Orange</option>
+            </select>
           </label>
         </div>
         <footer className="modal-footer">

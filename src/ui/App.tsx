@@ -24,7 +24,7 @@ type ScriptsResponse = {
   initialized?: boolean;
   overridesPresent?: boolean;
   hiddenScripts?: string[];
-  columns?: { id: string; name: string }[];
+  columns?: { id: string; name: string; color?: string }[];
 };
 
 export default function App() {
@@ -50,6 +50,7 @@ export default function App() {
     mode: "add" | "edit";
     id?: string;
     name?: string;
+    color?: string;
   }>({ open: false, mode: "add" });
   const [modalInitial, setModalInitial] = useState<{
     name: string;
@@ -464,9 +465,9 @@ export default function App() {
           throw new Error("Failed to save package.json script");
         }
         const json = (await res.json()) as { packageScripts: PackageScripts };
-        setData((prev) => ({
-          packageScripts: json.packageScripts ?? prev?.packageScripts ?? {},
-          customScripts: prev?.customScripts ?? []
+        updateData((prev) => ({
+          ...prev,
+          packageScripts: json.packageScripts ?? prev.packageScripts
         }));
       } else {
         const method = modalMode === "edit" ? "PUT" : "POST";
@@ -483,8 +484,8 @@ export default function App() {
           throw new Error("Failed to save custom script");
         }
         const json = (await res.json()) as { customScripts: CustomScript[] };
-        setData((prev) => ({
-          packageScripts: prev?.packageScripts ?? {},
+        updateData((prev) => ({
+          ...prev,
           customScripts: json.customScripts
         }));
       }
@@ -670,46 +671,38 @@ export default function App() {
   }
 
   function openAddColumnModal() {
-    setColumnModal({ open: true, mode: "add" });
+    setColumnModal({ open: true, mode: "add", color: "" });
   }
 
-  function openEditColumnModal(id: string, name: string) {
-    setColumnModal({ open: true, mode: "edit", id, name });
+  function openEditColumnModal(id: string, name: string, color?: string) {
+    setColumnModal({ open: true, mode: "edit", id, name, color: color ?? "" });
   }
 
-  async function saveColumn(name: string) {
+  async function saveColumn(name: string, color: string) {
     try {
       setSaving(true);
       if (columnModal.mode === "add") {
         const res = await fetch("/api/columns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name })
+          body: JSON.stringify({ name, color: color || "" })
         });
         if (!res.ok) {
           throw new Error("Failed to create column");
         }
-        const json = (await res.json()) as { columns: { id: string; name: string }[]; customScripts: CustomScript[] };
-        setData((prev) => ({
-          packageScripts: prev?.packageScripts ?? {},
-          customScripts: json.customScripts ?? prev?.customScripts ?? [],
-          columns: json.columns ?? prev?.columns ?? []
-        }));
+        await res.json();
+        await loadScripts();
       } else if (columnModal.id) {
         const res = await fetch(`/api/columns/${columnModal.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name })
+          body: JSON.stringify({ name, color: color || "" })
         });
         if (!res.ok) {
           throw new Error("Failed to update column");
         }
-        const json = (await res.json()) as { columns: { id: string; name: string }[]; customScripts: CustomScript[] };
-        setData((prev) => ({
-          packageScripts: prev?.packageScripts ?? {},
-          customScripts: json.customScripts ?? prev?.customScripts ?? [],
-          columns: json.columns ?? prev?.columns ?? []
-        }));
+        await res.json();
+        await loadScripts();
       }
       setColumnModal({ open: false, mode: "add" });
     } catch (err) {
@@ -739,7 +732,7 @@ export default function App() {
             throw new Error("Failed to delete column");
           }
           const json = (await res.json()) as {
-            columns: { id: string; name: string }[];
+            columns: { id: string; name: string; color?: string }[];
             customScripts: CustomScript[];
           };
           setData((prev) => ({
@@ -781,7 +774,7 @@ export default function App() {
           items={stack}
           onRemove={removeFromStack}
           onReorder={reorderStack}
-          placeholder={`${packageMeta.name} (${packageMeta.version})`}
+          placeholder={packageMeta.name}
           onExecute={async () => {
             if (stack.length === 0) {
               return;
@@ -812,7 +805,7 @@ export default function App() {
         {initialized && (
           <section className="board">
             <ScriptColumn
-              title="package.json scripts"
+              title={packageMeta.name}
               scripts={visiblePackageScripts}
               emptyLabel="No scripts found."
               actionLabel={showHidden ? "Hide hidden" : "Show hidden"}
@@ -830,6 +823,7 @@ export default function App() {
               <ScriptColumn
                 key={column.id}
                 title={column.name}
+                color={column.color}
                 scripts={customScriptsByColumn.get(column.id) ?? []}
                 emptyLabel="No custom scripts found."
                 showEmpty={false}
@@ -848,7 +842,7 @@ export default function App() {
                 onToggleHidden={(name, hidden) => handleHideToggle(name, hidden)}
                 addCardLabel="+ Add script"
                 onAddCard={() => openAddModal("custom")}
-                onEditColumn={() => openEditColumnModal(column.id, column.name)}
+                onEditColumn={() => openEditColumnModal(column.id, column.name, column.color)}
                 onDeleteColumn={() => confirmDeleteColumn(column.id, column.name)}
                 onDragColumnStart={() => handleColumnDragStart(column.id)}
                 onDropColumn={() => handleColumnDrop(column.id)}
@@ -857,9 +851,11 @@ export default function App() {
                 onDropToColumnEnd={() => handleScriptDropToEnd(column.id)}
               />
             ))}
-            <button className="card add-card" type="button" onClick={openAddColumnModal}>
-              + Add column
-            </button>
+            <div>
+              <button className="card add-card" type="button" onClick={openAddColumnModal}>
+                + Add column
+              </button>
+            </div>
           </section>
         )}
       </div>
@@ -880,6 +876,7 @@ export default function App() {
         open={columnModal.open}
         title={columnModal.mode === "add" ? "Add column" : "Edit column"}
         initialName={columnModal.name}
+        initialColor={columnModal.color}
         onClose={() => setColumnModal({ open: false, mode: "add" })}
         onSave={saveColumn}
       />

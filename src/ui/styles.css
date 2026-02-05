@@ -24,7 +24,7 @@ body,
   --column-bg: #202020;
   --card-bg: #3a3a3a;
   --card-border: #5a5a5a;
-  --card-shadow: 0 0.4rem 1rem rgba(5, 5, 5, 0.45);
+  --card-shadow: 0 4px 8px rgba(5, 5, 5, 0.45);
   --accent: #f2c94c;
   --text: #f2f2f2;
   --muted: #c3c3c3;
@@ -121,7 +121,8 @@ body {
 }
 
 .column {
-  background: var(--column-bg);
+  background: var(--tone-bg, var(--column-bg));
+  border: 0.0625rem solid var(--tone-border, var(--surface-border));
   border-radius: 0.625rem;
   padding: var(--space-4) var(--space-4) var(--space-2);
   box-shadow:
@@ -129,7 +130,7 @@ body {
     0 0.5rem 1rem rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  max-height: 100%;
 }
 
 .column h2 {
@@ -148,7 +149,7 @@ body {
 
 .card {
   background: var(--card-bg);
-  border: 0.0625rem solid var(--card-border);
+  border: 0.0625rem solid var(--tone-border, var(--card-border));
   border-radius: 0.625rem;
   padding: var(--space-3) 0.875rem;
   margin-bottom: var(--space-3);
@@ -160,49 +161,50 @@ body {
 }
 
 .color-grey {
-  background: #2b2b2b;
-  border-color: #5a5a5a;
+  --tone-bg: #2b2b2b;
+  --tone-border: #5a5a5a;
 }
 
 .color-slate {
-  background: #2a313c;
-  border-color: #556070;
+  --tone-bg: #2a313c;
+  --tone-border: #556070;
 }
 
 .color-teal {
-  background: #1e3335;
-  border-color: #3f6b70;
+  --tone-bg: #1e3335;
+  --tone-border: #3f6b70;
 }
 
 .color-amber {
-  background: #3a3121;
-  border-color: #8b6b2d;
+  --tone-bg: #3a3121;
+  --tone-border: #8b6b2d;
 }
 
 .color-rose {
-  background: #3b232a;
-  border-color: #8a3f4f;
+  --tone-bg: #3b232a;
+  --tone-border: #8a3f4f;
 }
 
 .color-violet {
-  background: #2f253f;
-  border-color: #6a4f9b;
+  --tone-bg: #2f253f;
+  --tone-border: #6a4f9b;
 }
 
 .color-lime {
-  background: #2f3a1f;
-  border-color: #6b8b34;
+  --tone-bg: #2f3a1f;
+  --tone-border: #6b8b34;
 }
 
 .color-sky {
-  background: #243244;
-  border-color: #3f6e98;
+  --tone-bg: #243244;
+  --tone-border: #3f6e98;
 }
 
 .color-orange {
-  background: #3b2a1e;
-  border-color: #9b5a2e;
+  --tone-bg: #3b2a1e;
+  --tone-border: #9b5a2e;
 }
+
 
 .card.hidden {
   opacity: 0.55;
@@ -230,7 +232,7 @@ body {
 
 .card:hover {
   filter: brightness(1.08);
-  box-shadow: 0 0.7rem 1.4rem rgba(0, 0, 0, 0.6);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.6);
 }
 
 .card h3 {
@@ -280,7 +282,7 @@ body {
   line-height: 1.4;
   color: var(--text);
   white-space: pre;
-  overflow-x: auto;
+  text-wrap: auto;
 }
 
 .context-menu {

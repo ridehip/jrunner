@@ -46,6 +46,7 @@ export default function ScriptItem({
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [tooltipOpen, setTooltipOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   function openMenu(event: React.MouseEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -69,8 +70,33 @@ export default function ScriptItem({
     }
   }
 
+  async function handleCopyCommand() {
+    closeMenu();
+    try {
+      await navigator.clipboard.writeText(command);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = command;
+      textarea.style.position = "fixed";
+      textarea.style.top = "-1000px";
+      textarea.style.left = "-1000px";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+  }
+
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
+      if (!hovered || menuOpen) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+        return;
+      }
       if (event.key === "Escape") {
         setMenuOpen(false);
       }
@@ -83,11 +109,42 @@ export default function ScriptItem({
     return () => {
       window.removeEventListener("keydown", handleKey);
     };
-  }, [menuOpen]);
+  }, [hovered, menuOpen]);
+
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if (!hovered || menuOpen) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "c") {
+        event.preventDefault();
+        handleCopyCommand();
+      } else if (key === "d") {
+        event.preventDefault();
+        runAction(() => onDuplicate(name));
+      } else if (key === "h") {
+        event.preventDefault();
+        runAction(() => onToggleHidden(name, !hidden));
+      } else if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        runAction(() => onDelete(name));
+      }
+    }
+
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [hovered, menuOpen, name, hidden, onDuplicate, onToggleHidden, onDelete]);
 
   function handleRun(event: React.MouseEvent<HTMLDivElement>) {
     if (!menuOpen) {
-      if (event.shiftKey) {
+      if (event.altKey) {
+        onEdit(name);
+      } else if (event.shiftKey) {
         onStackAdd(name);
       } else {
         onRun(name);
@@ -108,8 +165,14 @@ export default function ScriptItem({
       className={`card clickable${hidden ? " hidden" : ""}${color ? ` color-${color}` : ""}`}
       onClick={handleRun}
       onContextMenu={openMenu}
-      onMouseEnter={showTooltip}
-      onMouseLeave={hideTooltip}
+      onMouseEnter={() => {
+        setHovered(true);
+        showTooltip();
+      }}
+      onMouseLeave={() => {
+        setHovered(false);
+        hideTooltip();
+      }}
       draggable={draggable}
       onDragStart={(event) => {
         event.dataTransfer.setData("text/plain", name);
@@ -147,16 +210,22 @@ export default function ScriptItem({
               onClick={(event) => event.stopPropagation()}
             >
               <button type="button" onClick={() => runAction(() => onEdit(name))}>
-                Edit
+                Edit (Opt)
               </button>
               <button type="button" onClick={() => runAction(() => onDuplicate(name))}>
-                Duplicate
+                Duplicate (d)
+              </button>
+              <button type="button" onClick={handleCopyCommand}>
+                Copy command (c)
+              </button>
+              <button type="button" onClick={() => runAction(() => onStackAdd(name))}>
+                Stack (Shift)
               </button>
               <button type="button" onClick={() => runAction(() => onToggleHidden(name, !hidden))}>
-                {hidden ? "Unhide" : "Hide"}
+                {hidden ? "Unhide (h)" : "Hide (h)"}
               </button>
               <button type="button" onClick={() => runAction(() => onDelete(name))}>
-                Delete
+                Delete (Del/BS)
               </button>
             </div>
           </div>,

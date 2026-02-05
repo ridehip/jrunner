@@ -429,7 +429,8 @@ app.post("/api/columns", async (req, res) => {
       id = `${baseId}-${suffix++}`;
     }
 
-    confJson.pannels.columns.push({ id, name });
+    const { color } = req.body ?? {};
+    confJson.pannels.columns.push({ id, name, color: typeof color === "string" ? color : "" });
     await fs.writeFile(confPath, JSON.stringify(confJson, null, 2));
 
     res.json({
@@ -468,7 +469,7 @@ app.put("/api/columns/:id", async (req, res) => {
   try {
     const root = process.cwd();
     const confPath = path.join(root, "jrunner-conf.json");
-    const { name } = req.body ?? {};
+    const { name, color } = req.body ?? {};
     const { id } = req.params;
     if (!name) {
       return res.status(400).json({ error: "Invalid column payload" });
@@ -482,6 +483,9 @@ app.put("/api/columns/:id", async (req, res) => {
       return res.status(404).json({ error: "Column not found" });
     }
     column.name = name;
+    if (typeof color === "string") {
+      column.color = color;
+    }
     await fs.writeFile(confPath, JSON.stringify(confJson, null, 2));
 
     res.json({

@@ -5,6 +5,7 @@ type ScriptItem = {
   name: string;
   description?: string;
   command: string;
+  hidden?: boolean;
   color?: string;
 };
 
@@ -12,6 +13,7 @@ type ScriptColumnProps = {
   title: string;
   scripts: ScriptItem[];
   emptyLabel: string;
+  color?: string;
   showEmpty?: boolean;
   actionLabel?: string;
   onAction?: () => void;
@@ -36,6 +38,7 @@ export default function ScriptColumn({
   title,
   scripts,
   emptyLabel,
+  color,
   showEmpty = true,
   actionLabel,
   onAction,
@@ -57,7 +60,7 @@ export default function ScriptColumn({
 }: ScriptColumnProps) {
   return (
     <div
-      className="column"
+      className={`column${color ? ` color-${color}` : ""}`}
       onDragOver={(event) => onDropToColumnEnd && event.preventDefault()}
       onDrop={onDropToColumnEnd}
     >

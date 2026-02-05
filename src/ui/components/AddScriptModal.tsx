@@ -24,7 +24,7 @@ type AddScriptModalProps = {
   };
   originalName?: string | null;
   target: "custom" | "package";
-  columns: { id: string; name: string }[];
+  columns: { id: string; name: string; color?: string }[];
   onClose: () => void;
   onSave: (payload: {
     name: string;
