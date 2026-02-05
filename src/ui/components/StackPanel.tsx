@@ -44,29 +44,35 @@ export default function StackPanel({
   return (
     <div className="stack-panel">
       <div className="stack-items">
-        {items.map((item, index) => (
-          <div
-            key={item.id}
-            className={`stack-item${item.color ? ` color-${item.color}` : ""}`}
-            draggable
-            onDragStart={() => handleDragStart(index)}
-            onDragOver={handleDragOver}
-            onDrop={() => handleDrop(index)}
-          >
-            <div className="stack-label" title={item.label}>
-              {item.label}
-            </div>
-            <button
-              type="button"
-              className="stack-remove"
-              onClick={() => onRemove(item.id)}
-              aria-label={`Remove ${item.label}`}
-              title="Remove"
-            >
-              ×
-            </button>
+        {items.length === 0 ? (
+          <div className="stack-item stack-item-placeholder" aria-hidden="true">
+            <div className="stack-label">Shift+Click to add scripts to stack.</div>
           </div>
-        ))}
+        ) : (
+          items.map((item, index) => (
+            <div
+              key={item.id}
+              className={`stack-item${item.color ? ` color-${item.color}` : ""}`}
+              draggable
+              onDragStart={() => handleDragStart(index)}
+              onDragOver={handleDragOver}
+              onDrop={() => handleDrop(index)}
+            >
+              <div className="stack-label" title={item.label}>
+                {item.label}
+              </div>
+              <button
+                type="button"
+                className="stack-remove"
+                onClick={() => onRemove(item.id)}
+                aria-label={`Remove ${item.label}`}
+                title="Remove"
+              >
+                ×
+              </button>
+            </div>
+          ))
+        )}
         {items.length > 0 && (
           <>
             <button type="button" className="stack-execute" onClick={onExecute}>
@@ -77,6 +83,9 @@ export default function StackPanel({
             </button>
           </>
         )}
+      </div>
+      <div className="terminal-spacer" aria-hidden="true">
+        Terminal
       </div>
     </div>
   );

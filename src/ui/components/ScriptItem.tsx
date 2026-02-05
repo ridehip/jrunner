@@ -41,7 +41,8 @@ export default function ScriptItem({
     .split("&&")
     .map((part) => part.trim())
     .filter(Boolean)
-    .join(" && ");
+    .join("\n");
+  const commandLines = formattedCommand.split("\n");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -188,7 +189,13 @@ export default function ScriptItem({
         createPortal(
           <div className="card-tooltip">
             <div className="card-tooltip-title">{name}</div>
-            <pre className="card-tooltip-command">{formattedCommand}</pre>
+            <div className="card-tooltip-command">
+              {commandLines.map((line, index) => (
+                <div className="card-tooltip-line" key={`${line}-${index}`}>
+                  {line}
+                </div>
+              ))}
+            </div>
           </div>,
           document.body
         )}

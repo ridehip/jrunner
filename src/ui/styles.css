@@ -39,6 +39,7 @@ body,
   --space-4: 1rem;
   --space-5: 1.25rem;
   --space-6: 1.75rem;
+  --terminal-dock-offset: 7.5rem;
 }
 
 body {
@@ -264,7 +265,7 @@ body {
   left: 50%;
   bottom: calc(var(--space-6) + 0.5rem);
   transform: translateX(-50%);
-  max-width: min(48rem, 92vw);
+  max-width: 50%;
   pointer-events: none;
 }
 
@@ -283,6 +284,14 @@ body {
   color: var(--text);
   white-space: pre;
   text-wrap: auto;
+}
+
+.card-tooltip-line {
+  padding-bottom: 0.35rem;
+}
+
+.card-tooltip-line:last-child {
+  padding-bottom: 0;
 }
 
 .context-menu {
@@ -520,6 +529,19 @@ body {
   flex-wrap: wrap;
 }
 
+.terminal-spacer {
+  border: 0.125rem solid #6a6a6a;
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+}
+
 .stack-items {
   display: flex;
   flex-wrap: wrap;
@@ -527,6 +549,8 @@ body {
   align-items: center;
   min-width: 0;
   flex: 1;
+  padding-right: var(--space-6);
+  padding-bottom: var(--space-6);
 }
 
 .stack-item {
@@ -606,7 +630,7 @@ body {
 .terminal-dock {
   position: fixed;
   right: var(--space-6);
-  bottom: var(--space-6);
+  top: var(--space-6);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -650,15 +674,16 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  align-self: end;
+  align-self: flex-end;
   position: relative;
+  transform-origin: top left;
   transition: transform 220ms cubic-bezier(0.2, 0.9, 0.2, 1),
     opacity 220ms cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
 .terminal-container.open {
   display: flex;
-  transform: translateY(0);
+  transform: translateY(-0.35rem);
   opacity: 1;
 }
 
@@ -667,11 +692,8 @@ body {
   background: transparent;
   border: none;
   outline: none;
-  position: fixed;
-  right: var(--space-6);
-  bottom: var(--space-6);
-  transform: translateY(0.5rem);
-  opacity: 0.95;
+  position: relative;
+  transform: translateY(0);
 }
 
 .terminal-resize-handle {
