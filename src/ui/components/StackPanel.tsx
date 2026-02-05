@@ -9,7 +9,6 @@ type StackItem = {
 
 type StackPanelProps = {
   items: StackItem[];
-  placeholder: string;
   onExecute: () => void;
   onClear: () => void;
   onRemove: (id: string) => void;
@@ -18,7 +17,6 @@ type StackPanelProps = {
 
 export default function StackPanel({
   items,
-  placeholder,
   onExecute,
   onClear,
   onRemove,
@@ -45,7 +43,6 @@ export default function StackPanel({
 
   return (
     <div className="stack-panel">
-      <div className="stack-placeholder">{placeholder}</div>
       <div className="stack-items">
         {items.map((item, index) => (
           <div

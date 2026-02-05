@@ -774,7 +774,6 @@ export default function App() {
           items={stack}
           onRemove={removeFromStack}
           onReorder={reorderStack}
-          placeholder={packageMeta.name}
           onExecute={async () => {
             if (stack.length === 0) {
               return;

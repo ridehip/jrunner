@@ -36,7 +36,7 @@ export default function ScriptItem({
   onDragOver,
   onDrop
 }: ScriptItemProps) {
-  const detail = description ?? command;
+  const detail = description && description.trim().length > 0 ? description : command;
   const formattedCommand = command
     .split("&&")
     .map((part) => part.trim())
